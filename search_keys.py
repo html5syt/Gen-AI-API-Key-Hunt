@@ -1,9 +1,9 @@
 import requests
 import time
 import urllib.parse
+import json
 
 GITHUB_TOKEN = "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-
 headers = {"Authorization": f"token {GITHUB_TOKEN}"}
 
 queries = [
@@ -25,7 +25,7 @@ queries = [
     'XAI_API_KEY='
 ]
 
-def github_search(query, per_page=100):
+def github_search(query, per_page=50):
     url = f"https://api.github.com/search/code?q={urllib.parse.quote(query)}&per_page={per_page}"
     results = []
     page = 1
@@ -42,9 +42,35 @@ def github_search(query, per_page=100):
         if not items:
             break
 
-        results.extend(items)
+        for item in items:
+            repo_name = item["repository"]["full_name"]
+            file_path = item["path"]
+            file_url = item["html_url"]
 
-        if len(items) < per_page or page >= 10:
+            raw_url = file_url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
+            try:
+                raw_resp = requests.get(raw_url, headers=headers, timeout=10)
+                if raw_resp.status_code == 200:
+                    content = raw_resp.text
+                    matched_line = None
+                    for line in content.splitlines():
+                        if query.split("=")[0] in line:
+                            matched_line = line.strip()
+                            break
+                else:
+                    matched_line = None
+            except Exception as e:
+                matched_line = None
+
+            results.append({
+                "search_query": query,
+                "repository": repo_name,
+                "file_path": file_path,
+                "file_url": file_url,
+                "matched_line": matched_line
+            })
+
+        if len(items) < per_page or page >= 20:
             break
 
         page += 1
@@ -54,15 +80,14 @@ def github_search(query, per_page=100):
 
 
 if __name__ == "__main__":
-    all_results = {}
+    all_results = []
 
     for q in queries:
         print(f"Searching for: {q}")
         res = github_search(q)
-        all_results[q] = res
+        all_results.extend(res)
         print(f"  -> Found {len(res)} items")
 
-    import json
     with open("github_api_key_search_results.json", "w", encoding="utf-8") as f:
         json.dump(all_results, f, indent=2, ensure_ascii=False)
 
