@@ -47,7 +47,7 @@ queries = [
     'GROQ_API_KEY=gsk_',
 
     # XAI
-    'XAI_API_KEY='
+    'XAI_API_KEY=xai-'
 ]
 
 def github_search(query, per_page=50):
