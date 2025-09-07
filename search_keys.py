@@ -7,21 +7,46 @@ GITHUB_TOKEN = "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 headers = {"Authorization": f"token {GITHUB_TOKEN}"}
 
 queries = [
+    # OpenAI
     'OPENAI_API_KEY=sk-',
-    'ANTHROPIC_API_KEY=sk-',
-    'ANTHROPIC_API_KEY=an-',
+    'OPENAI_API_KEY=sk-proj-',
+
+    # Anthropic
+    'ANTHROPIC_API_KEY=sk-ant-',
+    'ANTHROPIC_API_KEY=sk-ant-api03-',
+    'ANTHROPIC_API_KEY=apikey_',
+
+    # Google / Gemini
     'GOOGLE_API_KEY=AIza',
     'GEMINI_API_KEY=AIza',
+
+    # OpenRouter
     'OPENROUTER_API_KEY=sk-',
-    'OPENROUTER_API_KEY=or_',
+    'OPENROUTER_API_KEY=sk-or-v1-',
     'OPEN_ROUTER_API_KEY=sk-',
-    'QWEN_API_KEY=QWEN-',
+    'OPEN_ROUTER_API_KEY=sk-or-v1-',
+
+    # Qwen
+    'QWEN_API_KEY=',
+
+    # Azure
     'AZURE_OPENAI_KEY=',
     'AZURE_OPENAI_ENDPOINT=',
+
+    # Mistral
     'MISTRAL_API_KEY=',
+
+    # DeepSeek
     'DEEPSEEK_API_KEY=',
+    'DEEPSEEK_API_KEY=sk-',
+
+    # Groq
     'GROK_API_KEY=',
     'GROQ_API_KEY=',
+    'GROK_API_KEY=gsk_',
+    'GROQ_API_KEY=gsk_',
+
+    # XAI
     'XAI_API_KEY='
 ]
 
@@ -59,7 +84,7 @@ def github_search(query, per_page=50):
                             break
                 else:
                     matched_line = None
-            except Exception as e:
+            except Exception:
                 matched_line = None
 
             results.append({
