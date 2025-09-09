@@ -2,7 +2,7 @@ import requests
 import time
 import urllib.parse
 import json
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Optional
 
 GITHUB_TOKEN = "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 headers = {"Authorization": f"token {GITHUB_TOKEN}"}
@@ -124,9 +124,20 @@ def generate_all_queries() -> List[str]:
 # first-character expansions to bypass GitHub Search result caps.
 queries: List[str] = generate_all_queries()
 
-def github_search(query, per_page=50):
+
+def save_results(results: List[Dict[str, Optional[str]]], output_path: str) -> None:
+    """Save cumulative search results to JSON to prevent data loss.
+
+    This function writes the current in-memory results to disk. It is invoked
+    after each query and also on interruption or unexpected errors.
+    """
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=2, ensure_ascii=False)
+
+def github_search(query: str, per_page: int = 50) -> List[Dict[str, Optional[str]]]:
+    """Run a GitHub code search and collect result metadata and matched lines."""
     url = f"https://api.github.com/search/code?q={urllib.parse.quote(query)}&per_page={per_page}"
-    results = []
+    results: List[Dict[str, Optional[str]]] = []
     page = 1
 
     while True:
@@ -179,15 +190,22 @@ def github_search(query, per_page=50):
 
 
 if __name__ == "__main__":
-    all_results = []
+    output_file = "github_api_key_search_results.json"
+    all_results: List[Dict[str, Optional[str]]] = []
 
-    for q in queries:
-        print(f"Searching for: {q}")
-        res = github_search(q)
-        all_results.extend(res)
-        print(f"  -> Found {len(res)} items")
+    try:
+        for q in queries:
+            print(f"Searching for: {q}")
+            res = github_search(q)
+            all_results.extend(res)
+            # Save a checkpoint after every query to avoid losing work time.
+            save_results(all_results, output_file)
+            print(f"  -> Found {len(res)} items (checkpoint saved)")
 
-    with open("github_api_key_search_results.json", "w", encoding="utf-8") as f:
-        json.dump(all_results, f, indent=2, ensure_ascii=False)
-
-    print("Done. Results saved to github_api_key_search_results.json")
+        print(f"Done. Results saved to {output_file}")
+    except KeyboardInterrupt:
+        save_results(all_results, output_file)
+        print(f"Interrupted. Partial results saved to {output_file}")
+    except Exception:
+        save_results(all_results, output_file)
+        raise
