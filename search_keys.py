@@ -83,7 +83,7 @@ def generate_all_queries() -> List[str]:
 
     # Google / Gemini
     google_vars: List[str] = ["GOOGLE_API_KEY", "GEMINI_API_KEY", "GEMINI_KEY"]
-    google_prefixes: List[str] = ["AIza"]
+    google_prefixes: List[str] = ["AIzaSy"]
     all_q += build_provider_queries(google_vars, google_prefixes, True, False)
 
     # OpenRouter
