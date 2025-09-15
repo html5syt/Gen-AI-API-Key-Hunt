@@ -2,10 +2,74 @@ import requests
 import time
 import urllib.parse
 import json
-from typing import Dict, Iterable, List, Optional
+import os
+from typing import Dict, Iterable, List, Optional, Tuple
 
-GITHUB_TOKEN = "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+try:
+    # Optional: load environment variables from a .env file if present
+    from dotenv import load_dotenv  # type: ignore
+
+    load_dotenv()
+except Exception:
+    # Safe fallback if python-dotenv is not installed
+    pass
+
+def load_github_tokens() -> List[str]:
+    """Load GitHub tokens from env var `GITHUB_TOKENS` or fallback to `GITHUB_TOKEN`.
+
+    `GITHUB_TOKENS` should be a comma-separated list. If absent, tries
+    `GITHUB_TOKEN`. Returns only non-empty tokens.
+    """
+    raw_multi = os.getenv("GITHUB_TOKENS", "")
+    if raw_multi.strip():
+        return [t.strip() for t in raw_multi.split(",") if t.strip()]
+
+    single = os.getenv("GITHUB_TOKEN", "")
+    return [single] if single.strip() else []
+
+
+def make_auth_header(token: str) -> Dict[str, str]:
+    """Construct Authorization header for a given token."""
+    return {"Authorization": f"token {token}"}
+
+
+class _NoTokenAvailable(Exception):
+    """Raised when no GitHub tokens are currently available."""
+
+
+def _parse_rate_limit_headers(resp: requests.Response) -> Tuple[Optional[int], Optional[int]]:
+    """Parse GitHub rate limit headers to (remaining, reset_epoch)."""
+    remaining_hdr = resp.headers.get("X-RateLimit-Remaining")
+    reset_hdr = resp.headers.get("X-RateLimit-Reset")
+    remaining = int(remaining_hdr) if remaining_hdr and remaining_hdr.isdigit() else None
+    reset_epoch = int(reset_hdr) if reset_hdr and reset_hdr.isdigit() else None
+    return remaining, reset_epoch
+
+
+def _select_token(tokens: List[str], state: Dict[str, int]) -> str:
+    """Select next token via round-robin, skipping cooling-down tokens.
+
+    `state` maps token -> cooldown_until_epoch. `_rr_idx` is the round-robin index.
+    """
+    if not tokens:
+        raise _NoTokenAvailable("No tokens configured")
+
+    now = int(time.time())
+    start_idx = state.get("_rr_idx", 0) % len(tokens)
+    for i in range(len(tokens)):
+        idx = (start_idx + i) % len(tokens)
+        token = tokens[idx]
+        if state.get(token, 0) <= now:
+            state["_rr_idx"] = (idx + 1) % len(tokens)
+            return token
+    raise _NoTokenAvailable("All tokens are cooling down")
+
+
+def _mark_token_cooldown(token: str, state: Dict[str, int], reset_epoch: Optional[int]) -> None:
+    """Mark a token to cooldown until reset epoch (or short backoff)."""
+    now = int(time.time())
+    until = reset_epoch if reset_epoch and reset_epoch > now else now + 60
+    state[token] = until
 
 CHARSET: str = (
     "abcdefghijklmnopqrstuvwxyz"
@@ -135,16 +199,41 @@ def save_results(results: List[Dict[str, Optional[str]]], output_path: str) -> N
         json.dump(results, f, indent=2, ensure_ascii=False)
 
 def github_search(query: str, per_page: int = 50) -> List[Dict[str, Optional[str]]]:
-    """Run a GitHub code search and collect result metadata and matched lines."""
+    """Run a GitHub code search and collect result metadata and matched lines.
+
+    Supports multiple tokens via env `GITHUB_TOKENS` with round-robin rotation
+    and per-token cooldown based on GitHub rate limit headers.
+    """
     url = f"https://api.github.com/search/code?q={urllib.parse.quote(query)}&per_page={per_page}"
     results: List[Dict[str, Optional[str]]] = []
     page = 1
+    tokens: List[str] = load_github_tokens()
+    token_state: Dict[str, int] = {}
 
     while True:
         paged_url = f"{url}&page={page}"
-        r = requests.get(paged_url, headers=headers)
+
+        # Pick token
+        while True:
+            try:
+                token = _select_token(tokens, token_state)
+                break
+            except _NoTokenAvailable:
+                if not token_state:
+                    raise
+                earliest = min(token_state.values())
+                sleep_for = max(1, earliest - int(time.time()))
+                print(f"All tokens limited. Sleeping {sleep_for}s...")
+                time.sleep(sleep_for)
+
+        r = requests.get(paged_url, headers=make_auth_header(token))
+        remaining, reset_epoch = _parse_rate_limit_headers(r)
+        if remaining is not None and remaining <= 0:
+            _mark_token_cooldown(token, token_state, reset_epoch)
         if r.status_code != 200:
             print(f"Error: {r.status_code}, {r.text}")
+            if r.status_code == 403:
+                _mark_token_cooldown(token, token_state, reset_epoch)
             break
 
         data = r.json()
@@ -159,7 +248,7 @@ def github_search(query: str, per_page: int = 50) -> List[Dict[str, Optional[str
 
             raw_url = file_url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
             try:
-                raw_resp = requests.get(raw_url, headers=headers, timeout=10)
+                raw_resp = requests.get(raw_url, headers=make_auth_header(token), timeout=10)
                 if raw_resp.status_code == 200:
                     content = raw_resp.text
                     matched_line = None
