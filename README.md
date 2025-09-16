@@ -1,39 +1,93 @@
-# api-key-hunt
+# API-Key-Hunt
 
-api-key-hunt searches public GitHub repositories for potential API key leaks. It builds focused search queries for common providers, walks paginated results, fetches raw files, and saves compact metadata to a JSON file. The tool supports one or multiple GitHub tokens and rotates them while respecting rate limits.
+A small utility that searches public GitHub repositories for potential API key leaks. It crafts focused queries for popular providers, walks paginated results, fetches raw files, and stores concise metadata in a JSON file. This project is intended for security researchers and developers who need to triage potential secrets exposure in public code.
 
-The script understands typical environment variable names and well‑known key prefixes (for example OpenAI, Anthropic, Google/Gemini, OpenRouter, Mistral, DeepSeek, Grok/Groq, xAI). To reduce the chance of hitting the 1000‑result window in GitHub Search, it expands the first character after known prefixes. Results are checkpointed after every query so you do not lose progress.
+## Deployment
 
-You need Python 3.10+ and internet access. Provide a GitHub personal access token with read access to public repositories. If you prefer configuration in a file, install `python-dotenv` so the script can read variables from a `.env` in the repository root.
-
-Clone the repository and, if you like, create a virtual environment. Install the needed packages (for example `requests`; `python-dotenv` is optional). No special build steps are required.
-
-Configure authentication using environment variables. If you set `GITHUB_TOKENS`, provide a comma‑separated list; the script will use exactly as many tokens as you specify and will rotate them automatically. If you set only `GITHUB_TOKEN`, the script uses that single token. On Windows PowerShell you can run:
-
-```powershell
-$env:GITHUB_TOKENS = "ghp_xxx1,ghp_xxx2"
-# or
-$env:GITHUB_TOKEN = "ghp_xxx"
-```
-
-If you prefer a file, create `.env` in the repository root and add either a list in `GITHUB_TOKENS` or a single `GITHUB_TOKEN`. When `python-dotenv` is installed, the script loads this file on startup.
-
-Run the tool from the repository root. On Windows PowerShell:
-
-```powershell
-python .\search_keys.py
-```
-
-On macOS or Linux:
+This is a Python script, no special deployment is required. To run locally from the repository root:
 
 ```bash
 python3 ./search_keys.py
 ```
 
-By default, output is written to `github_api_key_search_results.json`. Each entry includes the query used, repository name, file path, GitHub URL, and the first matched line if available. The format is easy to scan manually and simple to parse with other tools.
+On Windows PowerShell:
 
-Rate limits are handled automatically. The script reads `X‑RateLimit‑Remaining` and `X‑RateLimit‑Reset`. An exhausted token is cooled down until reset; with multiple tokens, the script switches to the next one. If all tokens are limited, it waits until the earliest reset and resumes. With a single token, the same logic applies without rotation.
+```powershell
+python .\search_keys.py
+```
 
-Please ensure your usage complies with GitHub’s Terms of Service. Search results can be incomplete due to API windows, repository changes, or tricky file formats. Matching is heuristic and intended for triage rather than definitive classification. If you encounter 403 errors, you likely hit a rate limit; add tokens or wait until reset. If your `.env` is not applied, install `python-dotenv` or export variables in your shell instead.
+## Environment Variables
 
-MIT License. See `LICENSE` for details.
+To run this project, configure GitHub tokens using environment variables or a `.env` file.
+
+Required (choose one approach):
+
+- `GITHUB_TOKENS` — comma‑separated list of tokens for rotation (e.g. `ghp_xxx1,ghp_xxx2`)
+- `GITHUB_TOKEN` — a single token (used if `GITHUB_TOKENS` is not set)
+
+Optional: install `python-dotenv` and place a `.env` in the repository root (see `.env.example`):
+
+```text
+GITHUB_TOKENS=ghp_xxx1,ghp_xxx2
+# or
+# GITHUB_TOKEN=ghp_xxx
+```
+
+The script rotates multiple tokens round‑robin and honors GitHub rate limits. With one token, it behaves the same without rotation.
+
+## FAQ
+
+#### How does token rotation work?
+
+The script selects tokens in a round‑robin order and reads `X‑RateLimit‑Remaining`/`X‑RateLimit‑Reset`. Exhausted tokens are cooled down until reset. If all tokens are limited, the script waits and resumes automatically.
+
+#### What providers are covered?
+
+Common ones like OpenAI, Anthropic, Google/Gemini, OpenRouter, Mistral, DeepSeek, Grok/Groq, and xAI. It combines typical environment variable names with known key prefixes and expands the first character after prefixes to avoid the 1000‑result window.
+
+## Installation
+
+Use a recent Python (3.10+). Optionally create a virtual environment. Install dependencies (for example, `requests`; `python-dotenv` is optional).
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # PowerShell: .venv\Scripts\Activate.ps1
+pip install -U requests python-dotenv
+```
+
+## Run Locally
+
+Clone the project and change directory:
+
+```bash
+git clone https://github.com/Aletheia-Praxis/api-key-hunt
+cd api-key-hunt
+```
+
+Set environment variables (examples) and run the script:
+
+```bash
+export GITHUB_TOKENS="ghp_xxx1,ghp_xxx2"   # PowerShell: $env:GITHUB_TOKENS = "ghp_xxx1,ghp_xxx2"
+python3 ./search_keys.py
+```
+
+## Usage/Examples
+
+Run directly as a script to generate the JSON results file:
+
+```bash
+python3 ./search_keys.py
+```
+
+Or import the function in Python to run a single query programmatically:
+
+```python
+from search_keys import github_search
+
+results = github_search("OPENAI_API_KEY=sk-")
+print(len(results), "items")
+```
+
+## License
+
+[MIT](./LICENSE)
