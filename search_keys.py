@@ -343,7 +343,8 @@ def _probe_total_count(query: str) -> Optional[int]:
         if r.status_code != 200:
             if r.status_code == 403:
                 _mark_token_cooldown(token, token_state, reset_epoch)
-                continue
+                # Break inner token selection loop to try another token
+                break
             return None
 
         try:
