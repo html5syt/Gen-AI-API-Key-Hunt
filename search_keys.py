@@ -278,14 +278,111 @@ def github_search(query: str, per_page: int = 50) -> List[Dict[str, Optional[str
     return results
 
 
+def _parse_query(query: str) -> Tuple[str, str]:
+    """Split query of form "VAR=VALUE_PREFIX" into parts.
+
+    Returns (variable_name, value_prefix). If '=' is missing, treats entire
+    string as variable_name and value_prefix as empty string.
+    """
+    if "=" in query:
+        var, val = query.split("=", 1)
+        return var, val
+    return query, ""
+
+
+def _probe_total_count(query: str) -> Optional[int]:
+    """Probe GitHub Search API to get total_count for a query.
+
+    Uses a lightweight request (per_page=1) and honors token rotation and
+    cooldowns similarly to the main search. Returns None on non-200 errors.
+    """
+    base_url = f"https://api.github.com/search/code?q={urllib.parse.quote(query)}&per_page=1&page=1"
+
+    tokens: List[str] = load_github_tokens()
+    token_state: Dict[str, int] = {}
+
+    while True:
+        # Select a token respecting cooldowns
+        while True:
+            try:
+                token = _select_token(tokens, token_state)
+                break
+            except _NoTokenAvailable:
+                if not token_state:
+                    return None
+                earliest = min(token_state.values())
+                sleep_for = max(1, earliest - int(time.time()))
+                print(f"All tokens limited (probe). Sleeping {sleep_for}s...")
+                time.sleep(sleep_for)
+
+        r = requests.get(base_url, headers=make_auth_header(token))
+        remaining, reset_epoch = _parse_rate_limit_headers(r)
+        if remaining is not None and remaining <= 0:
+            _mark_token_cooldown(token, token_state, reset_epoch)
+
+        if r.status_code != 200:
+            if r.status_code == 403:
+                _mark_token_cooldown(token, token_state, reset_epoch)
+                continue
+            return None
+
+        try:
+            data = r.json()
+            return int(data.get("total_count", 0))
+        except Exception:
+            return None
+
+
+def _adaptive_collect(var_name: str, value_prefix: str, max_depth: int, depth: int) -> List[Dict[str, Optional[str]]]:
+    """Recursively collect results, expanding by one character when capped at 1000.
+
+    - If total_count < 1000 for current query, run full paginated search and return.
+    - If total_count >= 1000 and depth < max_depth, branch into next-character variants.
+    - If total_count >= 1000 and depth == max_depth, still run full search (best effort).
+    """
+    query = f"{var_name}={value_prefix}"
+    total = _probe_total_count(query)
+
+    if total is None:
+        # Fallback to full search if probing failed
+        return github_search(query)
+
+    if total < 1000:
+        return github_search(query)
+
+    if depth >= max_depth:
+        # At max depth, accept possible truncation and collect
+        print(f"Query capped at 1000 at depth {depth}: {query} (collecting anyway)")
+        return github_search(query)
+
+    # Branch by adding one more character and recurse
+    results: List[Dict[str, Optional[str]]] = []
+    for ch in CHARSET:
+        child_prefix = f"{value_prefix}{ch}"
+        results.extend(_adaptive_collect(var_name, child_prefix, max_depth, depth + 1))
+    return results
+
+
+def adaptive_search(query: str, max_depth: int = 2) -> List[Dict[str, Optional[str]]]:
+    """Adaptive search that deepens prefix expansion up to two characters.
+
+    The function detects when a query hits GitHub's 1000-result cap and, in
+    that case, recursively expands the search by appending next characters
+    from CHARSET up to `max_depth` (default 2 characters after the base
+    prefix). This helps partition results into smaller windows.
+    """
+    var_name, value_prefix = _parse_query(query)
+    return _adaptive_collect(var_name, value_prefix, max_depth=max_depth, depth=0)
+
+
 if __name__ == "__main__":
     output_file = "github_api_key_search_results.json"
     all_results: List[Dict[str, Optional[str]]] = []
 
     try:
         for q in queries:
-            print(f"Searching for: {q}")
-            res = github_search(q)
+            print(f"Searching (adaptive) for: {q}")
+            res = adaptive_search(q, max_depth=2)
             all_results.extend(res)
             # Save a checkpoint after every query to avoid losing work time.
             save_results(all_results, output_file)
