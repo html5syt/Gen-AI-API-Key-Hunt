@@ -47,6 +47,17 @@ def _parse_rate_limit_headers(resp: requests.Response) -> Tuple[Optional[int], O
     return remaining, reset_epoch
 
 
+def _parse_retry_after_seconds(resp: requests.Response) -> Optional[int]:
+    """Parse Retry-After header (seconds). Returns None if absent/invalid."""
+    value = resp.headers.get("Retry-After")
+    if not value:
+        return None
+    try:
+        return int(value)
+    except Exception:
+        return None
+
+
 def _select_token(tokens: List[str], state: Dict[str, int]) -> str:
     """Select next token via round-robin, skipping cooling-down tokens.
 
@@ -232,9 +243,17 @@ def github_search(query: str, per_page: int = 50) -> List[Dict[str, Optional[str
         if remaining is not None and remaining <= 0:
             _mark_token_cooldown(token, token_state, reset_epoch)
         if r.status_code != 200:
-            print(f"Error: {r.status_code}, {r.text}")
             if r.status_code == 403:
-                _mark_token_cooldown(token, token_state, reset_epoch)
+                retry_after = _parse_retry_after_seconds(r)
+                if retry_after is not None:
+                    # Prefer Retry-After if provided (secondary rate limit)
+                    _mark_token_cooldown(token, token_state, int(time.time()) + retry_after)
+                else:
+                    _mark_token_cooldown(token, token_state, reset_epoch)
+                print(f"Rate limited (403). Cooling down current token and retrying page {page} with another token...")
+                # Retry loop by continuing without advancing page
+                continue
+            print(f"Error: {r.status_code}, {r.text}")
             break
 
         data = r.json()
