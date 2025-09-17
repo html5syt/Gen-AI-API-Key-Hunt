@@ -2,9 +2,9 @@ name: CI code quality checks and linting
 
 on:
   push:
-    branches: [ ** ]
+    branches: [ "**" ]
   pull_request:
-    branches: [ ** ]
+    branches: [ "**" ]
   workflow_dispatch:
 
 permissions:
