@@ -29,9 +29,26 @@ def load_github_tokens() -> List[str]:
     return [single] if single.strip() else []
 
 
-def make_auth_header(token: str) -> Dict[str, str]:
-    """Construct Authorization header for a given token."""
-    return {"Authorization": f"token {token}"}
+def _user_agent() -> str:
+    """Return User-Agent header value (configurable via GITHUB_USER_AGENT)."""
+    return os.getenv("GITHUB_USER_AGENT", "api-key-hunt/1.0")
+
+
+def make_api_headers(token: str) -> Dict[str, str]:
+    """Headers for GitHub REST API calls."""
+    return {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github+json",
+        "User-Agent": _user_agent(),
+    }
+
+
+def make_raw_headers(token: str) -> Dict[str, str]:
+    """Headers for raw.githubusercontent.com file fetches."""
+    return {
+        "Authorization": f"token {token}",
+        "User-Agent": _user_agent(),
+    }
 
 
 class _NoTokenAvailable(Exception):
@@ -270,7 +287,7 @@ def github_search(query: str, per_page: int = 50) -> List[Dict[str, Optional[str
                 print(f"All tokens limited. Sleeping {sleep_for}s...")
                 time.sleep(sleep_for)
 
-        r = requests.get(paged_url, headers=make_auth_header(token), timeout=REQUEST_TIMEOUT_SECONDS)
+        r = requests.get(paged_url, headers=make_api_headers(token), timeout=REQUEST_TIMEOUT_SECONDS)
         remaining, reset_epoch = _parse_rate_limit_headers(r)
         if remaining is not None and remaining <= 0:
             _mark_token_cooldown(token, token_state, reset_epoch)
@@ -303,7 +320,7 @@ def github_search(query: str, per_page: int = 50) -> List[Dict[str, Optional[str
 
             raw_url = file_url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
             try:
-                raw_resp = requests.get(raw_url, headers=make_auth_header(token), timeout=REQUEST_TIMEOUT_SECONDS)
+                raw_resp = requests.get(raw_url, headers=make_raw_headers(token), timeout=REQUEST_TIMEOUT_SECONDS)
                 if raw_resp.status_code == 200:
                     content = raw_resp.text
                     matched_line = None
@@ -370,7 +387,7 @@ def _probe_total_count(query: str) -> Optional[int]:
                 print(f"All tokens limited (probe). Sleeping {sleep_for}s...")
                 time.sleep(sleep_for)
 
-        r = requests.get(base_url, headers=make_auth_header(token), timeout=REQUEST_TIMEOUT_SECONDS)
+        r = requests.get(base_url, headers=make_api_headers(token), timeout=REQUEST_TIMEOUT_SECONDS)
         remaining, reset_epoch = _parse_rate_limit_headers(r)
         if remaining is not None and remaining <= 0:
             _mark_token_cooldown(token, token_state, reset_epoch)
