@@ -3,7 +3,8 @@ import time
 import urllib.parse
 import json
 import os
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+import concurrent.futures
 
 try:
     # Optional: load environment variables from a .env file if present
@@ -92,6 +93,7 @@ PAGE_DELAY_SECONDS: int = _get_int_env("PAGE_DELAY_SECONDS", 2)
 MAX_PAGES: int = _get_int_env("MAX_PAGES", 20)
 DEFAULT_BACKOFF_SECONDS: int = _get_int_env("DEFAULT_BACKOFF_SECONDS", 60)
 MAX_BACKOFF_SECONDS: int = _get_int_env("MAX_BACKOFF_SECONDS", 600)
+RAW_FETCH_WORKERS: int = _get_int_env("RAW_FETCH_WORKERS", 8)
 
 
 def _next_backoff_seconds(token: str, backoff_state: Dict[str, int]) -> int:
@@ -269,6 +271,7 @@ def github_search(query: str, per_page: int = 50) -> List[Dict[str, Optional[str
     tokens: List[str] = load_github_tokens()
     token_state: Dict[str, int] = {}
     backoff_state: Dict[str, int] = {}
+    var_name, _ = _parse_query(query)
 
     while True:
         paged_url = f"{url}&page={page}"
@@ -312,32 +315,48 @@ def github_search(query: str, per_page: int = 50) -> List[Dict[str, Optional[str
         if not items:
             break
 
-        for item in items:
+        def _find_matched_line(content: str, needle: str) -> Optional[str]:
+            """Return the first line containing `needle` or None if not found."""
+            for line in content.splitlines():
+                if needle in line:
+                    return line.strip()
+            return None
+
+        def _fetch_item_line(item_obj: Dict[str, Any]) -> Optional[str]:
+            """Fetch raw file and extract matched line for a single search item.
+
+            Uses the same token for headers as the API call. Returns the first
+            matching line or None on errors or when no match is found.
+            """
+            file_url_local = item_obj["html_url"]
+            raw_url_local = file_url_local.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
+            try:
+                raw_resp_local = requests.get(
+                    raw_url_local,
+                    headers=make_raw_headers(token),
+                    timeout=REQUEST_TIMEOUT_SECONDS,
+                )
+                if raw_resp_local.status_code == 200:
+                    return _find_matched_line(raw_resp_local.text, var_name)
+                return None
+            except Exception:
+                return None
+
+        # Parallelize raw content fetch/extract to speed up processing per page
+        with concurrent.futures.ThreadPoolExecutor(max_workers=RAW_FETCH_WORKERS) as executor:
+            matched_lines: List[Optional[str]] = list(executor.map(_fetch_item_line, items))
+
+        for item, matched_line in zip(items, matched_lines):
             repo_name = item["repository"]["full_name"]
             file_path = item["path"]
             file_url = item["html_url"]
-
-            raw_url = file_url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
-            try:
-                raw_resp = requests.get(raw_url, headers=make_raw_headers(token), timeout=REQUEST_TIMEOUT_SECONDS)
-                if raw_resp.status_code == 200:
-                    content = raw_resp.text
-                    matched_line = None
-                    for line in content.splitlines():
-                        if query.split("=")[0] in line:
-                            matched_line = line.strip()
-                            break
-                else:
-                    matched_line = None
-            except Exception:
-                matched_line = None
 
             results.append({
                 "search_query": query,
                 "repository": repo_name,
                 "file_path": file_path,
                 "file_url": file_url,
-                "matched_line": matched_line
+                "matched_line": matched_line,
             })
 
         if len(items) < per_page or page >= MAX_PAGES:
