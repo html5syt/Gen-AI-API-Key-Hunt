@@ -269,7 +269,6 @@ def github_search(query: str, per_page: int = 50) -> List[Dict[str, Optional[str
     tokens: List[str] = load_github_tokens()
     token_state: Dict[str, int] = {}
     backoff_state: Dict[str, int] = {}
-    backoff_state: Dict[str, int] = {}
 
     while True:
         paged_url = f"{url}&page={page}"
@@ -372,6 +371,7 @@ def _probe_total_count(query: str) -> Optional[int]:
 
     tokens: List[str] = load_github_tokens()
     token_state: Dict[str, int] = {}
+    backoff_state: Dict[str, int] = {}
 
     while True:
         # Select a token respecting cooldowns
@@ -411,6 +411,9 @@ def _probe_total_count(query: str) -> Optional[int]:
             return int(data.get("total_count", 0))
         except Exception:
             return None
+
+    # Safety return to satisfy static analyzers in case the loop exits unexpectedly
+    return None
 
 
 def _adaptive_collect(var_name: str, value_prefix: str, max_depth: int, depth: int) -> List[Dict[str, Optional[str]]]:
