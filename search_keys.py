@@ -58,6 +58,23 @@ def _parse_retry_after_seconds(resp: requests.Response) -> Optional[int]:
         return None
 
 
+def _get_int_env(name: str, default: int) -> int:
+    """Read integer environment variable with a default."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except Exception:
+        return default
+
+
+# Tunables via env vars
+REQUEST_TIMEOUT_SECONDS: int = _get_int_env("REQUEST_TIMEOUT_SECONDS", 10)
+PAGE_DELAY_SECONDS: int = _get_int_env("PAGE_DELAY_SECONDS", 2)
+MAX_PAGES: int = _get_int_env("MAX_PAGES", 20)
+
+
 def _select_token(tokens: List[str], state: Dict[str, int]) -> str:
     """Select next token via round-robin, skipping cooling-down tokens.
 
@@ -238,7 +255,7 @@ def github_search(query: str, per_page: int = 50) -> List[Dict[str, Optional[str
                 print(f"All tokens limited. Sleeping {sleep_for}s...")
                 time.sleep(sleep_for)
 
-        r = requests.get(paged_url, headers=make_auth_header(token), timeout=15)
+        r = requests.get(paged_url, headers=make_auth_header(token), timeout=REQUEST_TIMEOUT_SECONDS)
         remaining, reset_epoch = _parse_rate_limit_headers(r)
         if remaining is not None and remaining <= 0:
             _mark_token_cooldown(token, token_state, reset_epoch)
@@ -268,7 +285,7 @@ def github_search(query: str, per_page: int = 50) -> List[Dict[str, Optional[str
 
             raw_url = file_url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
             try:
-                raw_resp = requests.get(raw_url, headers=make_auth_header(token), timeout=15)
+                raw_resp = requests.get(raw_url, headers=make_auth_header(token), timeout=REQUEST_TIMEOUT_SECONDS)
                 if raw_resp.status_code == 200:
                     content = raw_resp.text
                     matched_line = None
@@ -289,11 +306,11 @@ def github_search(query: str, per_page: int = 50) -> List[Dict[str, Optional[str
                 "matched_line": matched_line
             })
 
-        if len(items) < per_page or page >= 20:
+        if len(items) < per_page or page >= MAX_PAGES:
             break
 
         page += 1
-        time.sleep(2)
+        time.sleep(PAGE_DELAY_SECONDS)
 
     return results
 
@@ -335,14 +352,18 @@ def _probe_total_count(query: str) -> Optional[int]:
                 print(f"All tokens limited (probe). Sleeping {sleep_for}s...")
                 time.sleep(sleep_for)
 
-        r = requests.get(base_url, headers=make_auth_header(token), timeout=15)
+        r = requests.get(base_url, headers=make_auth_header(token), timeout=REQUEST_TIMEOUT_SECONDS)
         remaining, reset_epoch = _parse_rate_limit_headers(r)
         if remaining is not None and remaining <= 0:
             _mark_token_cooldown(token, token_state, reset_epoch)
 
         if r.status_code != 200:
             if r.status_code == 403:
-                _mark_token_cooldown(token, token_state, reset_epoch)
+                retry_after = _parse_retry_after_seconds(r)
+                if retry_after is not None:
+                    _mark_token_cooldown(token, token_state, int(time.time()) + retry_after)
+                else:
+                    _mark_token_cooldown(token, token_state, reset_epoch)
                 # Break inner token selection loop to try another token
                 break
             return None
