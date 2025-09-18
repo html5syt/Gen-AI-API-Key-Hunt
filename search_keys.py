@@ -73,6 +73,19 @@ def _get_int_env(name: str, default: int) -> int:
 REQUEST_TIMEOUT_SECONDS: int = _get_int_env("REQUEST_TIMEOUT_SECONDS", 10)
 PAGE_DELAY_SECONDS: int = _get_int_env("PAGE_DELAY_SECONDS", 2)
 MAX_PAGES: int = _get_int_env("MAX_PAGES", 20)
+DEFAULT_BACKOFF_SECONDS: int = _get_int_env("DEFAULT_BACKOFF_SECONDS", 60)
+MAX_BACKOFF_SECONDS: int = _get_int_env("MAX_BACKOFF_SECONDS", 600)
+
+
+def _next_backoff_seconds(token: str, backoff_state: Dict[str, int]) -> int:
+    """Return next backoff delay (exponential up to MAX_BACKOFF_SECONDS)."""
+    prev = backoff_state.get(token, 0)
+    if prev <= 0:
+        delay = DEFAULT_BACKOFF_SECONDS
+    else:
+        delay = min(prev * 2, MAX_BACKOFF_SECONDS)
+    backoff_state[token] = delay
+    return delay
 
 
 def _select_token(tokens: List[str], state: Dict[str, int]) -> str:
@@ -238,6 +251,8 @@ def github_search(query: str, per_page: int = 50) -> List[Dict[str, Optional[str
     page = 1
     tokens: List[str] = load_github_tokens()
     token_state: Dict[str, int] = {}
+    backoff_state: Dict[str, int] = {}
+    backoff_state: Dict[str, int] = {}
 
     while True:
         paged_url = f"{url}&page={page}"
@@ -263,10 +278,13 @@ def github_search(query: str, per_page: int = 50) -> List[Dict[str, Optional[str
             if r.status_code == 403:
                 retry_after = _parse_retry_after_seconds(r)
                 if retry_after is not None:
-                    # Prefer Retry-After if provided (secondary rate limit)
                     _mark_token_cooldown(token, token_state, int(time.time()) + retry_after)
-                else:
+                elif reset_epoch is not None:
                     _mark_token_cooldown(token, token_state, reset_epoch)
+                else:
+                    # No headers available: exponential backoff
+                    backoff = _next_backoff_seconds(token, backoff_state)
+                    _mark_token_cooldown(token, token_state, int(time.time()) + backoff)
                 print(f"Rate limited (403). Cooling down current token and retrying page {page} with another token...")
                 # Retry loop by continuing without advancing page
                 continue
@@ -362,8 +380,11 @@ def _probe_total_count(query: str) -> Optional[int]:
                 retry_after = _parse_retry_after_seconds(r)
                 if retry_after is not None:
                     _mark_token_cooldown(token, token_state, int(time.time()) + retry_after)
-                else:
+                elif reset_epoch is not None:
                     _mark_token_cooldown(token, token_state, reset_epoch)
+                else:
+                    backoff = _next_backoff_seconds(token, backoff_state)
+                    _mark_token_cooldown(token, token_state, int(time.time()) + backoff)
                 # Break inner token selection loop to try another token
                 break
             return None
