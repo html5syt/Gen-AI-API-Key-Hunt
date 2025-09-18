@@ -474,7 +474,28 @@ def adaptive_search(query: str, max_depth: int = 2) -> List[Dict[str, Optional[s
     prefix). This helps partition results into smaller windows.
     """
     var_name, value_prefix = _parse_query(query)
-    return _adaptive_collect(var_name, value_prefix, max_depth=max_depth, depth=0)
+    collected = _adaptive_collect(var_name, value_prefix, max_depth=max_depth, depth=0)
+    return _dedupe_results(collected)
+
+
+def _dedupe_results(items: List[Dict[str, Optional[str]]]) -> List[Dict[str, Optional[str]]]:
+    """Remove duplicates by (repository, file_path).
+
+    Keeps the first occurrence; subsequent duplicates are skipped. This prevents
+    double counting when branches overlap or when a file matches multiple
+    nearby prefixes.
+    """
+    seen: set[tuple[str, str]] = set()
+    unique: List[Dict[str, Optional[str]]] = []
+    for it in items:
+        repo = it.get("repository") or ""
+        path = it.get("file_path") or ""
+        key = (repo, path)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(it)
+    return unique
 
 
 if __name__ == "__main__":
