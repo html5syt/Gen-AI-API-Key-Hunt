@@ -210,6 +210,7 @@ __marimo__/
 #Search results
 github_api_key_search_results.json
 *_github_api_key_search_results.json
+*.db
 
 # Internal chaos files
 *-SEC.md
