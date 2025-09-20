@@ -1,7 +1,6 @@
 import requests
 import time
 import urllib.parse
-import json
 import os
 import sqlite3
 from sqlite3 import Connection
