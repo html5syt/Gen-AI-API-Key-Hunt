@@ -319,7 +319,15 @@ def github_search(con: Connection, query: str, per_page: int = 50) -> int:
                 print(f"All tokens limited. Sleeping {sleep_for}s...")
                 time.sleep(sleep_for)
 
-        r = requests.get(paged_url, headers=make_api_headers(token), timeout=REQUEST_TIMEOUT_SECONDS)
+        try:
+            r = requests.get(paged_url, headers=make_api_headers(token), timeout=REQUEST_TIMEOUT_SECONDS)
+        except requests.exceptions.RequestException as e:
+            print(f"Request failed: {e}. Cooling down token and retrying.")
+            # Use exponential backoff for the token
+            backoff = _next_backoff_seconds(token, backoff_state)
+            _mark_token_cooldown(token, token_state, int(time.time()) + backoff)
+            continue
+
         remaining, reset_epoch = _parse_rate_limit_headers(r)
         if remaining is not None and remaining <= 0:
             _mark_token_cooldown(token, token_state, reset_epoch)
@@ -438,7 +446,14 @@ def _probe_total_count(query: str) -> Optional[int]:
                 print(f"All tokens limited (probe). Sleeping {sleep_for}s...")
                 time.sleep(sleep_for)
 
-        r = requests.get(base_url, headers=make_api_headers(token), timeout=REQUEST_TIMEOUT_SECONDS)
+        try:
+            r = requests.get(base_url, headers=make_api_headers(token), timeout=REQUEST_TIMEOUT_SECONDS)
+        except requests.exceptions.RequestException as e:
+            print(f"Probe request failed: {e}. Cooling down token and retrying.")
+            backoff = _next_backoff_seconds(token, backoff_state)
+            _mark_token_cooldown(token, token_state, int(time.time()) + backoff)
+            continue
+
         remaining, reset_epoch = _parse_rate_limit_headers(r)
         if remaining is not None and remaining <= 0:
             _mark_token_cooldown(token, token_state, reset_epoch)
