@@ -3,6 +3,8 @@ import time
 import urllib.parse
 import json
 import os
+import sqlite3
+from sqlite3 import Connection
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 import concurrent.futures
 
@@ -15,6 +17,41 @@ except ImportError:
     # Safe fallback if python-dotenv is not installed
     # Intentionally ignore missing dependency and continue.
     ...
+
+def init_database(db_path: str) -> Connection:
+    """Initialize SQLite database and create results table if not present."""
+    con = sqlite3.connect(db_path)
+    cur = con.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS results (
+            id INTEGER PRIMARY KEY,
+            search_query TEXT,
+            repository TEXT,
+            file_path TEXT,
+            file_url TEXT,
+            matched_line TEXT,
+            UNIQUE(repository, file_path)
+        )
+    """)
+    con.commit()
+    return con
+
+
+def insert_result(con: Connection, result: Dict[str, Optional[str]]) -> None:
+    """Insert a single search result into the database, ignoring duplicates."""
+    cur = con.cursor()
+    cur.execute("""
+        INSERT OR IGNORE INTO results (search_query, repository, file_path, file_url, matched_line)
+        VALUES (?, ?, ?, ?, ?)
+    """, (
+        result["search_query"],
+        result["repository"],
+        result["file_path"],
+        result["file_url"],
+        result["matched_line"],
+    ))
+    con.commit()
+
 
 def load_github_tokens() -> List[str]:
     """Load GitHub tokens from env var `GITHUB_TOKENS` or fallback to `GITHUB_TOKEN`.
@@ -250,23 +287,16 @@ def generate_all_queries() -> List[str]:
 queries: List[str] = generate_all_queries()
 
 
-def save_results(results: List[Dict[str, Optional[str]]], output_path: str) -> None:
-    """Save cumulative search results to JSON to prevent data loss.
-
-    This function writes the current in-memory results to disk. It is invoked
-    after each query and also on interruption or unexpected errors.
-    """
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=2, ensure_ascii=False)
-
-def github_search(query: str, per_page: int = 50) -> List[Dict[str, Optional[str]]]:
-    """Run a GitHub code search and collect result metadata and matched lines.
+def github_search(con: Connection, query: str, per_page: int = 50) -> int:
+    """Run a GitHub code search and save results to the database.
 
     Supports multiple tokens via env `GITHUB_TOKENS` with round-robin rotation
     and per-token cooldown based on GitHub rate limit headers.
+
+    Returns the number of new items inserted into the database.
     """
     url = f"https://api.github.com/search/code?q={urllib.parse.quote(query)}&per_page={per_page}"
-    results: List[Dict[str, Optional[str]]] = []
+    items_found = 0
     page = 1
     tokens: List[str] = load_github_tokens()
     token_state: Dict[str, int] = {}
@@ -351,13 +381,15 @@ def github_search(query: str, per_page: int = 50) -> List[Dict[str, Optional[str
             file_path = item["path"]
             file_url = item["html_url"]
 
-            results.append({
+            result_item = {
                 "search_query": query,
                 "repository": repo_name,
                 "file_path": file_path,
                 "file_url": file_url,
                 "matched_line": matched_line,
-            })
+            }
+            insert_result(con, result_item)
+            items_found += 1
 
         if len(items) < per_page or page >= MAX_PAGES:
             break
@@ -365,7 +397,7 @@ def github_search(query: str, per_page: int = 50) -> List[Dict[str, Optional[str
         page += 1
         time.sleep(PAGE_DELAY_SECONDS)
 
-    return results
+    return items_found
 
 
 def _parse_query(query: str) -> Tuple[str, str]:
@@ -435,7 +467,7 @@ def _probe_total_count(query: str) -> Optional[int]:
     return None
 
 
-def _adaptive_collect(var_name: str, value_prefix: str, max_depth: int, depth: int) -> List[Dict[str, Optional[str]]]:
+def _adaptive_collect(con: Connection, var_name: str, value_prefix: str, max_depth: int, depth: int) -> int:
     """Recursively collect results, expanding by one character when capped at 1000.
 
     - If total_count < 1000 for current query, run full paginated search and return.
@@ -447,25 +479,25 @@ def _adaptive_collect(var_name: str, value_prefix: str, max_depth: int, depth: i
 
     if total is None:
         # Fallback to full search if probing failed
-        return github_search(query)
+        return github_search(con, query)
 
     if total < 1000:
-        return github_search(query)
+        return github_search(con, query)
 
     if depth >= max_depth:
         # At max depth, accept possible truncation and collect
         print(f"Query capped at 1000 at depth {depth}: {query} (collecting anyway)")
-        return github_search(query)
+        return github_search(con, query)
 
     # Branch by adding one more character and recurse
-    results: List[Dict[str, Optional[str]]] = []
+    total_found = 0
     for ch in CHARSET:
         child_prefix = f"{value_prefix}{ch}"
-        results.extend(_adaptive_collect(var_name, child_prefix, max_depth, depth + 1))
-    return results
+        total_found += _adaptive_collect(con, var_name, child_prefix, max_depth, depth + 1)
+    return total_found
 
 
-def adaptive_search(query: str, max_depth: int = 2) -> List[Dict[str, Optional[str]]]:
+def adaptive_search(con: Connection, query: str, max_depth: int = 2) -> int:
     """Adaptive search that deepens prefix expansion up to two characters.
 
     The function detects when a query hits GitHub's 1000-result cap and, in
@@ -474,47 +506,26 @@ def adaptive_search(query: str, max_depth: int = 2) -> List[Dict[str, Optional[s
     prefix). This helps partition results into smaller windows.
     """
     var_name, value_prefix = _parse_query(query)
-    collected = _adaptive_collect(var_name, value_prefix, max_depth=max_depth, depth=0)
-    return _dedupe_results(collected)
-
-
-def _dedupe_results(items: List[Dict[str, Optional[str]]]) -> List[Dict[str, Optional[str]]]:
-    """Remove duplicates by (repository, file_path).
-
-    Keeps the first occurrence; subsequent duplicates are skipped. This prevents
-    double counting when branches overlap or when a file matches multiple
-    nearby prefixes.
-    """
-    seen: set[tuple[str, str]] = set()
-    unique: List[Dict[str, Optional[str]]] = []
-    for it in items:
-        repo = it.get("repository") or ""
-        path = it.get("file_path") or ""
-        key = (repo, path)
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(it)
-    return unique
+    return _adaptive_collect(con, var_name, value_prefix, max_depth=max_depth, depth=0)
 
 
 if __name__ == "__main__":
-    output_file = "github_api_key_search_results.json"
-    all_results: List[Dict[str, Optional[str]]] = []
+    db_file = "api_keys.db"
+    db_connection = init_database(db_file)
+    total_found_count = 0
 
     try:
         for q in queries:
             print(f"Searching (adaptive) for: {q}")
-            res = adaptive_search(q, max_depth=2)
-            all_results.extend(res)
-            # Save a checkpoint after every query to avoid losing work time.
-            save_results(all_results, output_file)
-            print(f"  -> Found {len(res)} items (checkpoint saved)")
+            found_count = adaptive_search(db_connection, q, max_depth=2)
+            total_found_count += found_count
+            print(f"  -> Found {found_count} new items (total: {total_found_count})")
 
-        print(f"Done. Results saved to {output_file}")
+        print(f"Done. Results saved to {db_file}")
     except KeyboardInterrupt:
-        save_results(all_results, output_file)
-        print(f"Interrupted. Partial results saved to {output_file}")
-    except Exception:
-        save_results(all_results, output_file)
+        print(f"Interrupted. Partial results saved to {db_file}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
         raise
+    finally:
+        db_connection.close()
