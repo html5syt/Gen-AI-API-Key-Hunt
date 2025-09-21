@@ -1,6 +1,6 @@
-# API-Key-Hunt
+# Gen-AI-API-Key-Hunt
 
-A small utility that searches public GitHub repositories for potential API key leaks. It crafts focused queries for popular providers, walks paginated results, fetches raw files, and stores concise metadata in a JSON file. This project is intended for security researchers and developers who need to triage potential secrets exposure in public code.
+A small utility that searches public GitHub repositories for potential Gen AI API key leaks. It crafts focused queries for popular providers, walks paginated results, fetches raw files, and stores concise metadata in a DB file. This project is intended for security researchers and developers who need to triage potential secrets exposure in public code.
 
 ## Deployment
 
@@ -73,7 +73,7 @@ python3 ./search_keys.py
 
 ## Usage/Examples
 
-Run directly as a script to generate the JSON results file:
+Run directly as a script to generate the DB results file:
 
 ```bash
 python3 ./search_keys.py
