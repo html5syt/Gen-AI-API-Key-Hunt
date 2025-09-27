@@ -75,15 +75,7 @@ def make_api_headers(token: str) -> Dict[str, str]:
     """Headers for GitHub REST API calls."""
     return {
         "Authorization": f"token {token}",
-        "Accept": "application/vnd.github+json",
-        "User-Agent": _user_agent(),
-    }
-
-
-def make_raw_headers(token: str) -> Dict[str, str]:
-    """Headers for raw.githubusercontent.com file fetches."""
-    return {
-        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3.text-match+json",
         "User-Agent": _user_agent(),
     }
 
@@ -300,7 +292,6 @@ def github_search(con: Connection, query: str, per_page: int = 50) -> int:
     tokens: List[str] = load_github_tokens()
     token_state: Dict[str, int] = {}
     backoff_state: Dict[str, int] = {}
-    var_name, _ = _parse_query(query)
 
     while True:
         paged_url = f"{url}&page={page}"
@@ -352,48 +343,21 @@ def github_search(con: Connection, query: str, per_page: int = 50) -> int:
         if not items:
             break
 
-        def _find_matched_line(content: str, needle: str) -> Optional[str]:
-            """Return the first line containing `needle` or None if not found."""
-            for line in content.splitlines():
-                if needle in line:
-                    return line.strip()
-            return None
-
-        def _fetch_item_line(item_obj: Dict[str, Any]) -> Optional[str]:
-            """Fetch raw file and extract matched line for a single search item.
-
-            Uses the same token for headers as the API call. Returns the first
-            matching line or None on errors or when no match is found.
-            """
-            file_url_local = item_obj["html_url"]
-            raw_url_local = file_url_local.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/")
-            try:
-                raw_resp_local = requests.get(
-                    raw_url_local,
-                    headers=make_raw_headers(token),
-                    timeout=REQUEST_TIMEOUT_SECONDS,
-                )
-                if raw_resp_local.status_code == 200:
-                    return _find_matched_line(raw_resp_local.text, var_name)
-                return None
-            except Exception:
-                return None
-
-        # Parallelize raw content fetch/extract to speed up processing per page
-        with concurrent.futures.ThreadPoolExecutor(max_workers=RAW_FETCH_WORKERS) as executor:
-            matched_lines: List[Optional[str]] = list(executor.map(_fetch_item_line, items))
-
-        for item, matched_line in zip(items, matched_lines):
+        for item in items:
             repo_name = item["repository"]["full_name"]
             file_path = item["path"]
             file_url = item["html_url"]
+
+            # Extract matched line from text_matches if available
+            text_matches = item.get("text_matches", [])
+            matched_line = text_matches[0]["fragment"] if text_matches else None
 
             result_item = {
                 "search_query": query,
                 "repository": repo_name,
                 "file_path": file_path,
                 "file_url": file_url,
-                "matched_line": matched_line,
+                "matched_line": matched_line.strip() if matched_line else None,
             }
             insert_result(con, result_item)
             items_found += 1
