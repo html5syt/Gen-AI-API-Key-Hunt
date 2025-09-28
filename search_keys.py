@@ -4,8 +4,7 @@ import urllib.parse
 import os
 import sqlite3
 from sqlite3 import Connection
-from typing import Any, Dict, Iterable, List, Optional, Tuple
-import concurrent.futures
+from typing import Dict, Iterable, List, Optional, Tuple
 
 try:
     # Optional: load environment variables from a .env file if present
