@@ -444,12 +444,12 @@ def _probe_total_count(query: str) -> Optional[int]:
     return None
 
 
-def _adaptive_collect(con: Connection, var_name: str, value_prefix: str, max_depth: int, depth: int) -> int:
+def _adaptive_collect(con: Connection, var_name: str, value_prefix: str, depth: int) -> int:
     """Recursively collect results, expanding by one character when capped at 1000.
 
-    - If total_count < 1000 for current query, run full paginated search and return.
-    - If total_count >= 1000 and depth < max_depth, branch into next-character variants.
-    - If total_count >= 1000 and depth == max_depth, still run full search (best effort).
+    - Always collect results from current query level
+    - If total_count >= 1000, additionally branch into next-character variants
+    - Continue recursion until each branch has < 1000 results
     """
     query = f"{var_name}={value_prefix}"
     total = _probe_total_count(query)
@@ -458,32 +458,39 @@ def _adaptive_collect(con: Connection, var_name: str, value_prefix: str, max_dep
         # Fallback to full search if probing failed
         return github_search(con, query)
 
+    # Always collect current level results first
+    current_found = github_search(con, query)
+    
     if total < 1000:
-        return github_search(con, query)
+        # No need to branch deeper, we got all results
+        return current_found
 
-    if depth >= max_depth:
-        # At max depth, accept possible truncation and collect
-        print(f"Query capped at 1000 at depth {depth}: {query} (collecting anyway)")
-        return github_search(con, query)
+    # We have 1000+ results, so branch deeper to get more complete coverage
+    if total >= 1000:
+        print(f"Query has {total} results at depth {depth}: {query} (branching deeper)")
 
-    # Branch by adding one more character and recurse
-    total_found = 0
-    for ch in CHARSET:
-        child_prefix = f"{value_prefix}{ch}"
-        total_found += _adaptive_collect(con, var_name, child_prefix, max_depth, depth + 1)
-    return total_found
+        # Branch by adding one more character and recurse
+        additional_found = 0
+        for ch in CHARSET:
+            child_prefix = f"{value_prefix}{ch}"
+            additional_found += _adaptive_collect(con, var_name, child_prefix, depth + 1)
+        
+        return current_found + additional_found
+    
+    # This should never be reached, but for safety
+    return current_found
 
 
-def adaptive_search(con: Connection, query: str, max_depth: int = 2) -> int:
-    """Adaptive search that deepens prefix expansion up to two characters.
+def adaptive_search(con: Connection, query: str) -> int:
+    """Adaptive search that deepens prefix expansion until results are < 1000.
 
     The function detects when a query hits GitHub's 1000-result cap and, in
     that case, recursively expands the search by appending next characters
-    from CHARSET up to `max_depth` (default 2 characters after the base
-    prefix). This helps partition results into smaller windows.
+    from CHARSET. This helps partition results into smaller windows while
+    always collecting data from each level.
     """
     var_name, value_prefix = _parse_query(query)
-    return _adaptive_collect(con, var_name, value_prefix, max_depth=max_depth, depth=0)
+    return _adaptive_collect(con, var_name, value_prefix, depth=0)
 
 
 if __name__ == "__main__":
@@ -494,7 +501,7 @@ if __name__ == "__main__":
     try:
         for q in queries:
             print(f"Searching (adaptive) for: {q}")
-            found_count = adaptive_search(db_connection, q, max_depth=2)
+            found_count = adaptive_search(db_connection, q)
             total_found_count += found_count
             print(f"  -> Found {found_count} new items (total: {total_found_count})")
 
