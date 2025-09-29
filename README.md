@@ -2,6 +2,21 @@
 
 A small utility that searches public GitHub repositories for potential Gen AI API key leaks. It crafts focused queries for popular providers, walks paginated results, fetches raw files, and stores concise metadata in a DB file. This project is intended for security researchers and developers who need to triage potential secrets exposure in public code.
 
+## Disclaimer and Compliance
+
+This tool is intended for educational and security research purposes only. It is designed to help security professionals and developers identify potential secret leaks in public repositories they are authorized to analyze.
+
+Users are solely responsible for ensuring their use of this tool complies with all applicable laws and terms of service, including the [GitHub Acceptable Use Policies](https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies). The author assumes no liability for any misuse or damage caused by this project.
+
+The script is designed to operate within GitHub's policies by adhering to the following principles:
+
+- **Purpose of Use**: The script is intended for security research, a permissible use of public, non-personal information under **Section 7** of GitHub's policies.
+- **API Usage**: It exclusively uses the official GitHub REST API for data collection, which is the approved method for automated access.
+- **Rate Limiting**: It honors API rate limits to avoid placing an undue burden on GitHub's infrastructure, in line with **Section 4**.
+- **Authorized Access**: The tool only accesses publicly available data and does not attempt to gain unauthorized access to private information, complying with **Section 5**.
+
+This script does not store, validate, or use the discovered keys; it only identifies their location. It is the user's responsibility to handle any discovered information ethically and legally.
+
 ## Deployment
 
 This is a Python script, no special deployment is required. To run locally from the repository root:
@@ -37,11 +52,11 @@ The script rotates multiple tokens round‑robin and honors GitHub rate limits. 
 
 ## FAQ
 
-#### How does token rotation work?
+### How does token rotation work?
 
 The script selects tokens in a round‑robin order and reads `X‑RateLimit‑Remaining`/`X‑RateLimit‑Reset`. Exhausted tokens are cooled down until reset. If all tokens are limited, the script waits and resumes automatically.
 
-#### What providers are covered?
+### What providers are covered?
 
 Common ones like OpenAI, Anthropic, Google/Gemini, OpenRouter, Mistral, DeepSeek, Grok/Groq, and xAI. It combines typical environment variable names with known key prefixes and expands the first character after prefixes to avoid the 1000‑result window.
 
