@@ -50,11 +50,26 @@ GITHUB_TOKENS=ghp_xxx1,ghp_xxx2
 
 The script rotates multiple tokens round‑robin and honors GitHub rate limits. With one token, it behaves the same without rotation.
 
+## Optional Configuration
+
+You can fine-tune the script's behavior with these optional environment variables:
+
+- **`REQUEST_TIMEOUT_SECONDS`**: Timeout for API requests in seconds. Default: `10`.
+- **`PAGE_DELAY_SECONDS`**: Delay between paginated search requests. Default: `2`.
+- **`MAX_PAGES`**: Maximum number of pages to fetch for a single query branch. Default: `20`.
+- **`DEFAULT_BACKOFF_SECONDS`**: Initial delay in seconds when a token is rate-limited without a `Retry-After` header. Default: `60`.
+- **`MAX_BACKOFF_SECONDS`**: Maximum backoff delay for exponential backoff. Default: `600`.
+- **`GITHUB_USER_AGENT`**: Custom User-Agent string for API requests. Default: `api-key-hunt/1.0`.
+
 ## FAQ
 
 ### How does token rotation work?
 
 The script selects tokens in a round‑robin order and reads `X‑RateLimit‑Remaining`/`X‑RateLimit‑Reset`. Exhausted tokens are cooled down until reset. If all tokens are limited, the script waits and resumes automatically.
+
+### How does the adaptive search work?
+
+GitHub's Search API caps results at 1000 per query. To find more potential leaks, the script first probes the total count for a base query (e.g., `OPENAI_API_KEY=sk-`). If the count is 1000 or more, it recursively expands the search by appending one character at a time (e.g., `sk-a`, `sk-b`, etc.) until each sub-query returns fewer than 1000 results. This partitions the search space to uncover a more comprehensive set of results.
 
 ### What providers are covered?
 
@@ -97,10 +112,17 @@ python3 ./search_keys.py
 Or import the function in Python to run a single query programmatically:
 
 ```python
-from search_keys import github_search
+from search_keys import adaptive_search, init_database
 
-results = github_search("OPENAI_API_KEY=sk-")
-print(len(results), "items")
+# Initialize a database connection
+con = init_database("my_results.db")
+
+# Run a single adaptive search
+results_count = adaptive_search(con, "OPENAI_API_KEY=sk-")
+print(f"Found {results_count} new items")
+
+# Close the connection when done
+con.close()
 ```
 
 ## License
