@@ -103,17 +103,21 @@ def main():
         return
         
     print(f"Extracted {len(extracted_keys)} unique keys. Now checking their validity...")
+    print(f"Valid keys will be saved to '{VALID_KEYS_FILE}' as they are found.")
 
-    valid_keys = []
+    # Clear the file at the beginning of the run
+    with open(VALID_KEYS_FILE, 'w') as f:
+        pass
+
+    valid_keys_count = 0
     for key in sorted(list(extracted_keys)):
         if is_gemini_key_valid(key):
-            valid_keys.append(key)
-
-    if valid_keys:
-        print(f"\nFound {len(valid_keys)} valid Gemini API keys.")
-        with open(VALID_KEYS_FILE, 'w') as f:
-            for key in valid_keys:
+            with open(VALID_KEYS_FILE, 'a') as f:
                 f.write(key + '\n')
+            valid_keys_count += 1
+
+    if valid_keys_count > 0:
+        print(f"\nFound {valid_keys_count} valid Gemini API keys.")
         print(f"Valid keys have been saved to '{VALID_KEYS_FILE}'.")
     else:
         print("\nNo valid Gemini API keys were found.")
