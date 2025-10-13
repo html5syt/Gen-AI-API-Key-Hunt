@@ -141,7 +141,7 @@ def process_provider(provider_name: str, config: Dict[str, Any]):
         print(f"No potential keys found in the database for {provider_name.upper()}.")
         return
 
-    print(f"Found {len(candidates)} potential lines for {provider_name.upper()}. Extracting and validating...")
+    print(f"Found {len(candidates)} potential lines for {provider_name.upper()}. Extracting keys...")
     
     extracted_keys: Set[str] = set()
     for line in candidates:
@@ -153,22 +153,32 @@ def process_provider(provider_name: str, config: Dict[str, Any]):
         print(f"Could not extract any keys from the database candidates for {provider_name.upper()}.")
         return
         
-    print(f"Extracted {len(extracted_keys)} unique keys for {provider_name.upper()}. Now checking their validity...")
+    unique_keys = sorted(list(extracted_keys))
+    print(f"Extracted {len(unique_keys)} unique keys for {provider_name.upper()}. Now checking their validity in parallel...")
+    
+    valid_keys: List[str] = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        future_to_key = {executor.submit(is_key_valid, key, config): key for key in unique_keys}
+        
+        for i, future in enumerate(concurrent.futures.as_completed(future_to_key)):
+            key = future_to_key[future]
+            try:
+                if future.result():
+                    valid_keys.append(key)
+            except Exception as exc:
+                print(f"  [!] Error validating key {key[:10]}...: {exc}")
+            
+            # Print progress
+            print(f"  Progress: {i + 1}/{len(unique_keys)} keys checked", end='\r')
+
+    print("\n" + " " * 50) # Clear progress line
+
     output_file = config["output_file"]
-    print(f"Valid {provider_name.upper()} keys will be saved to '{output_file}' as they are found.")
-
-    with open(output_file, 'w') as f:
-        pass  # Clear the file at the beginning
-
-    valid_keys_count = 0
-    for key in sorted(list(extracted_keys)):
-        if is_key_valid(key, config):
-            with open(output_file, 'a') as f:
+    if valid_keys:
+        print(f"Found {len(valid_keys)} valid {provider_name.upper()} API keys. Saving to '{output_file}'.")
+        with open(output_file, 'w') as f:
+            for key in sorted(valid_keys):
                 f.write(key + '\n')
-            valid_keys_count += 1
-
-    if valid_keys_count > 0:
-        print(f"Found {valid_keys_count} valid {provider_name.upper()} API keys saved to '{output_file}'.")
     else:
         print(f"No valid {provider_name.upper()} API keys were found.")
 
