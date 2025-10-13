@@ -1,31 +1,83 @@
 import sqlite3
 import requests
 import re
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Dict, Any, Tuple
 
 DB_PATH = "4_api_keys.db"
-VALID_KEYS_FILE = "valid_gemini_keys.txt"
 
-def get_gemini_candidates_from_db() -> List[str]:
-    """
-    Retrieves potential Gemini API key candidates from the database.
+# Provider Configurations
 
-    Fetches all 'matched_line' entries where the search query is related to Google or Gemini.
+PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
+    "openai": {
+        "queries": ["%OPENAI_API_KEY%", "%OPENAI_KEY%", "%OPENAI_SECRET_KEY%", "%OPENAI_TOKEN%"],
+        "patterns": [r'(sk-proj-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20})', r'(sk-[A-Za-z0-9]{48})'],
+        "validation_url": "https://api.openai.com/v1/models",
+        "auth_method": "bearer",
+        "output_file": "valid_openai_keys.txt",
+    },
+    "anthropic": {
+        "queries": ["%ANTHROPIC_API_KEY%", "%CLAUDE_API_KEY%", "%ANTHROPIC_KEY%"],
+        "patterns": [r'(sk-ant-api03-[A-Za-z0-9\-_]{95})', r'(sk-ant-[A-Za-z0-9\-_]{44})'],
+        "validation_url": "https://api.anthropic.com/v1/messages",
+        "auth_method": "x-api-key",
+        "is_post": True,
+        "post_data": {"model": "claude-3-haiku-20240307", "max_tokens": 1, "messages": [{"role": "user", "content": "."}]},
+        "output_file": "valid_anthropic_keys.txt",
+    },
+    "google": {
+        "queries": ["%GOOGLE_API_KEY%", "%GEMINI_API_KEY%", "%GEMINI_KEY%"],
+        "patterns": [r'(AIzaSy[A-Za-z0-9\-_]{33})'],
+        "validation_url": "https://generativelanguage.googleapis.com/v1beta/models",
+        "auth_method": "key_param",
+        "output_file": "valid_gemini_keys.txt",
+    },
+    "openrouter": {
+        "queries": ["%OPENROUTER_API_KEY%", "%OPEN_ROUTER_API_KEY%"],
+        "patterns": [r'(sk-or-v1-[a-f0-9]{64})'],
+        "validation_url": "https://openrouter.ai/api/v1/models",
+        "auth_method": "bearer",
+        "output_file": "valid_openrouter_keys.txt",
+    },
+    "mistral": {
+        "queries": ["%MISTRAL_API_KEY%", "%MISTRAL_KEY%"],
+        "patterns": [r'([A-Za-z0-9]{32})'], # Generic pattern, might have false positives
+        "validation_url": "https://api.mistral.ai/v1/models",
+        "auth_method": "bearer",
+        "output_file": "valid_mistral_keys.txt",
+    },
+    "deepseek": {
+        "queries": ["%DEEPSEEK_API_KEY%", "%DEEPSEEK_KEY%"],
+        "patterns": [r'(sk-[a-f0-9]{32})'],
+        "validation_url": "https://api.deepseek.com/v1/models",
+        "auth_method": "bearer",
+        "output_file": "valid_deepseek_keys.txt",
+    },
+    "groq": {
+        "queries": ["%GROQ_API_KEY%", "%GROQ_KEY%"],
+        "patterns": [r'(gsk_[A-Za-z0-9]{48})'],
+        "validation_url": "https://api.groq.com/openai/v1/models",
+        "auth_method": "bearer",
+        "output_file": "valid_groq_keys.txt",
+    },
+    "xai": {
+        "queries": ["%XAI_API_KEY%", "%XAI_KEY%"],
+        "patterns": [r'(xai-[A-Za-z0-9]{64})'],
+        "validation_url": "https://api.x.ai/v1/models",
+        "auth_method": "bearer",
+        "output_file": "valid_xai_keys.txt",
+    },
+}
 
-    Returns:
-        A list of strings, where each string is a line containing a potential key.
-    """
+# Generic Functions
+
+def get_candidates_from_db(search_queries: List[str]) -> List[str]:
+    """Retrieves potential API key candidates from the database based on search queries."""
     candidates = []
     try:
         with sqlite3.connect(DB_PATH) as con:
             cur = con.cursor()
-            # Select lines from searches for Google/Gemini keys
-            cur.execute("""
-                SELECT matched_line FROM results
-                WHERE search_query LIKE '%GOOGLE_API_KEY%'
-                   OR search_query LIKE '%GEMINI_API_KEY%'
-                   OR search_query LIKE '%GEMINI_KEY%';
-            """)
+            query_placeholders = " OR ".join(["search_query LIKE ?"] * len(search_queries))
+            cur.execute(f"SELECT matched_line FROM results WHERE {query_placeholders}", search_queries)
             rows = cur.fetchall()
             candidates = [row[0] for row in rows if row[0]]
     except sqlite3.OperationalError as e:
@@ -33,69 +85,64 @@ def get_gemini_candidates_from_db() -> List[str]:
         print(f"Please ensure the database '{DB_PATH}' exists and is not corrupted.")
     return candidates
 
-def extract_api_key(line: str) -> Optional[str]:
-    """
-    Extracts a Gemini API key from a line of text using a regex.
+def extract_api_keys(line: str, patterns: List[str]) -> List[str]:
+    """Extracts API keys from a line of text using a list of regex patterns."""
+    found_keys = []
+    for pattern in patterns:
+        matches = re.findall(pattern, line)
+        if matches:
+            found_keys.extend(matches)
+    return found_keys
 
-    Looks for the 'AIzaSy' prefix followed by a sequence of valid key characters.
+def is_key_valid(api_key: str, config: Dict[str, Any]) -> bool:
+    """Validates an API key by making a request to the provider's API."""
+    url = config["validation_url"]
+    auth_method = config["auth_method"]
+    headers = {"User-Agent": "api-key-hunt/1.0"}
+    params = {}
+    is_post = config.get("is_post", False)
+    post_data = config.get("post_data", {})
 
-    Args:
-        line: The string to search for a key.
+    if auth_method == "bearer":
+        headers["Authorization"] = f"Bearer {api_key}"
+    elif auth_method == "x-api-key":
+        headers["x-api-key"] = api_key
+    elif auth_method == "key_param":
+        params["key"] = api_key
 
-    Returns:
-        The extracted API key as a string, or None if no key is found.
-    """
-    # Gemini API keys start with "AIzaSy" and contain alphanumeric chars, underscores, and hyphens.
-    match = re.search(r'(AIzaSy[A-Za-z0-9\-_]+)', line)
-    if match:
-        return match.group(1)
-    return None
-
-def is_gemini_key_valid(api_key: str) -> bool:
-    """
-    Validates a Gemini API key by making a simple request to the Google AI API.
-
-    Args:
-        api_key: The Gemini API key to validate.
-
-    Returns:
-        True if the key is valid, False otherwise.
-    """
-    # This endpoint lists available models, a lightweight way to check key validity.
-    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
     try:
-        response = requests.get(url, timeout=10)
-        # A 200 OK response means the key is valid.
-        # A 400/403 error indicates an invalid or disabled key.
+        if is_post:
+            response = requests.post(url, headers=headers, json=post_data, params=params, timeout=10)
+        else:
+            response = requests.get(url, headers=headers, params=params, timeout=10)
+        
+        # For Anthropic, 400 on this endpoint with a valid key means bad request, but key is good.
+        if config.get("is_post") and response.status_code == 400:
+             print(f"  [+] VALID (via 400): {api_key[:10]}...")
+             return True
+
         if response.status_code == 200:
             print(f"  [+] VALID: {api_key[:10]}...")
             return True
-        else:
-            # This key is likely invalid, expired, or has incorrect permissions.
-            # print(f"  [-] INVALID: {api_key[:10]}... (Status: {response.status_code})")
-            return False
+        return False
     except requests.RequestException:
-        # Network error or timeout
-        # print(f"  [!] ERROR validating {api_key[:10]}...")
         return False
 
-def main():
-    """
-    Main function to orchestrate the key validation process.
-    """
-    print("Starting Gemini API key validation process...")
+def process_provider(provider_name: str, config: Dict[str, Any]):
+    """Orchestrates the key validation process for a single provider."""
+    print(f"\nStarting {provider_name.upper()} API key validation")
     
-    candidates = get_gemini_candidates_from_db()
+    candidates = get_candidates_from_db(config["queries"])
     if not candidates:
-        print("No potential Gemini keys found in the database.")
+        print("No potential keys found in the database for this provider.")
         return
 
-    print(f"Found {len(candidates)} potential lines containing keys. Extracting and validating...")
+    print(f"Found {len(candidates)} potential lines. Extracting and validating...")
     
     extracted_keys: Set[str] = set()
     for line in candidates:
-        key = extract_api_key(line)
-        if key:
+        keys = extract_api_keys(line, config["patterns"])
+        for key in keys:
             extracted_keys.add(key)
 
     if not extracted_keys:
@@ -103,24 +150,29 @@ def main():
         return
         
     print(f"Extracted {len(extracted_keys)} unique keys. Now checking their validity...")
-    print(f"Valid keys will be saved to '{VALID_KEYS_FILE}' as they are found.")
+    output_file = config["output_file"]
+    print(f"Valid keys will be saved to '{output_file}' as they are found.")
 
-    # Clear the file at the beginning of the run
-    with open(VALID_KEYS_FILE, 'w') as f:
-        pass
+    with open(output_file, 'w') as f:
+        pass  # Clear the file at the beginning
 
     valid_keys_count = 0
     for key in sorted(list(extracted_keys)):
-        if is_gemini_key_valid(key):
-            with open(VALID_KEYS_FILE, 'a') as f:
+        if is_key_valid(key, config):
+            with open(output_file, 'a') as f:
                 f.write(key + '\n')
             valid_keys_count += 1
 
     if valid_keys_count > 0:
-        print(f"\nFound {valid_keys_count} valid Gemini API keys.")
-        print(f"Valid keys have been saved to '{VALID_KEYS_FILE}'.")
+        print(f"Found {valid_keys_count} valid {provider_name.upper()} API keys saved to '{output_file}'.")
     else:
-        print("\nNo valid Gemini API keys were found.")
+        print(f"No valid {provider_name.upper()} API keys were found.")
+
+def main():
+    """Main function to run validation for all configured providers."""
+    for provider_name, config in PROVIDER_CONFIGS.items():
+        process_provider(provider_name, config)
+    print("\nAll providers processed.")
 
 if __name__ == "__main__":
     main()
