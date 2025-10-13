@@ -211,6 +211,7 @@ __marimo__/
 github_api_key_search_results.json
 *_github_api_key_search_results.json
 *.db
+*_keys.txt
 
 # Internal chaos files
 *-SEC.md
