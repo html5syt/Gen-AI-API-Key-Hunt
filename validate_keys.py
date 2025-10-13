@@ -74,9 +74,9 @@ def is_gemini_key_valid(api_key: str) -> bool:
             # This key is likely invalid, expired, or has incorrect permissions.
             # print(f"  [-] INVALID: {api_key[:10]}... (Status: {response.status_code})")
             return False
-    except requests.RequestException as e:
+    except requests.RequestException:
         # Network error or timeout
-        # print(f"  [!] ERROR validating {api_key[:10]}...: {e}")
+        # print(f"  [!] ERROR validating {api_key[:10]}...")
         return False
 
 def main():
