@@ -1,7 +1,8 @@
 import sqlite3
 import requests
 import re
-from typing import List, Optional, Set, Dict, Any, Tuple
+import concurrent.futures
+from typing import List, Set, Dict, Any
 
 DB_PATH = "4_api_keys.db"
 
@@ -107,6 +108,8 @@ def is_key_valid(api_key: str, config: Dict[str, Any]) -> bool:
         headers["Authorization"] = f"Bearer {api_key}"
     elif auth_method == "x-api-key":
         headers["x-api-key"] = api_key
+        if "anthropic" in url: # Specific header for Anthropic
+            headers["anthropic-version"] = "2023-06-01"
     elif auth_method == "key_param":
         params["key"] = api_key
 
@@ -134,10 +137,10 @@ def process_provider(provider_name: str, config: Dict[str, Any]):
     
     candidates = get_candidates_from_db(config["queries"])
     if not candidates:
-        print("No potential keys found in the database for this provider.")
+        print(f"No potential keys found in the database for {provider_name.upper()}.")
         return
 
-    print(f"Found {len(candidates)} potential lines. Extracting and validating...")
+    print(f"Found {len(candidates)} potential lines for {provider_name.upper()}. Extracting and validating...")
     
     extracted_keys: Set[str] = set()
     for line in candidates:
@@ -146,12 +149,12 @@ def process_provider(provider_name: str, config: Dict[str, Any]):
             extracted_keys.add(key)
 
     if not extracted_keys:
-        print("Could not extract any keys from the database candidates.")
+        print(f"Could not extract any keys from the database candidates for {provider_name.upper()}.")
         return
         
-    print(f"Extracted {len(extracted_keys)} unique keys. Now checking their validity...")
+    print(f"Extracted {len(extracted_keys)} unique keys for {provider_name.upper()}. Now checking their validity...")
     output_file = config["output_file"]
-    print(f"Valid keys will be saved to '{output_file}' as they are found.")
+    print(f"Valid {provider_name.upper()} keys will be saved to '{output_file}' as they are found.")
 
     with open(output_file, 'w') as f:
         pass  # Clear the file at the beginning
@@ -169,9 +172,18 @@ def process_provider(provider_name: str, config: Dict[str, Any]):
         print(f"No valid {provider_name.upper()} API keys were found.")
 
 def main():
-    """Main function to run validation for all configured providers."""
-    for provider_name, config in PROVIDER_CONFIGS.items():
-        process_provider(provider_name, config)
+    """Main function to run validation for all configured providers in parallel."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(PROVIDER_CONFIGS)) as executor:
+        # Submit all provider processing tasks to the executor
+        future_to_provider = {executor.submit(process_provider, name, config): name for name, config in PROVIDER_CONFIGS.items()}
+        
+        for future in concurrent.futures.as_completed(future_to_provider):
+            provider_name = future_to_provider[future]
+            try:
+                future.result()  # Wait for the thread to complete and raise exceptions if any
+            except Exception as exc:
+                print(f" {provider_name.upper()} process generated an exception: {exc}")
+
     print("\nAll providers processed.")
 
 if __name__ == "__main__":
