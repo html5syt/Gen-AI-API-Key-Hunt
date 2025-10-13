@@ -77,10 +77,9 @@ def get_candidates_from_db(search_queries: List[str]) -> List[str]:
     try:
         with sqlite3.connect(DB_PATH) as con:
             cur = con.cursor()
-            # Form placeholders without string formatting
-            placeholders = ','.join(['?'] * len(search_queries))
-            sql = f"SELECT matched_line FROM results WHERE search_query IN ({placeholders})"
-            cur.execute(sql, search_queries)
+            query_placeholders = " OR ".join(["search_query LIKE ?"] * len(search_queries))
+            sql_query = "SELECT matched_line FROM results WHERE " + query_placeholders  # nosec [B608]
+            cur.execute(sql_query, search_queries)
             rows = cur.fetchall()
             candidates = [row[0] for row in rows if row[0]]
     except sqlite3.OperationalError as e:
