@@ -2,15 +2,16 @@ import sqlite3
 import requests
 import re
 import concurrent.futures
-from typing import List, Set, Dict, Any
+import threading
+from typing import List, Set, Dict, Any, Tuple
 
 DB_PATH = "4_api_keys.db"
 
 # Provider Configurations
-
 PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
     "openai": {
         "queries": ["%OPENAI_API_KEY%", "%OPENAI_KEY%", "%OPENAI_SECRET_KEY%", "%OPENAI_TOKEN%"],
+        "prefixes": ["sk-", "sk-proj-"],
         "patterns": [r'(sk-proj-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20})', r'(sk-[A-Za-z0-9]{48})'],
         "validation_url": "https://api.openai.com/v1/models",
         "auth_method": "bearer",
@@ -18,15 +19,17 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
     },
     "anthropic": {
         "queries": ["%ANTHROPIC_API_KEY%", "%CLAUDE_API_KEY%", "%ANTHROPIC_KEY%"],
+        "prefixes": ["sk-ant-", "sk-ant-api03-", "apikey_"],
         "patterns": [r'(sk-ant-api03-[A-Za-z0-9\-_]{95})', r'(sk-ant-[A-Za-z0-9\-_]{44})'],
-        "validation_url": "https://api.anthropic.com/v1/messages",
+        "validation_url": "https://api.anthropic.com/v1/organizations",  # Changed to free endpoint
         "auth_method": "x-api-key",
-        "is_post": True,
-        "post_data": {"model": "claude-3-haiku-20240307", "max_tokens": 1, "messages": [{"role": "user", "content": "."}]},
+        "is_post": False,  # Changed to GET
+        "post_data": {},  # Not needed
         "output_file": "valid_anthropic_keys.txt",
     },
     "google": {
         "queries": ["%GOOGLE_API_KEY%", "%GEMINI_API_KEY%", "%GEMINI_KEY%"],
+        "prefixes": ["AIzaSy"],
         "patterns": [r'(AIzaSy[A-Za-z0-9\-_]{33})'],
         "validation_url": "https://generativelanguage.googleapis.com/v1beta/models",
         "auth_method": "key_param",
@@ -34,6 +37,7 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
     },
     "openrouter": {
         "queries": ["%OPENROUTER_API_KEY%", "%OPEN_ROUTER_API_KEY%"],
+        "prefixes": ["sk-or-v1-"],
         "patterns": [r'(sk-or-v1-[a-f0-9]{64})'],
         "validation_url": "https://openrouter.ai/api/v1/models",
         "auth_method": "bearer",
@@ -41,13 +45,15 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
     },
     "mistral": {
         "queries": ["%MISTRAL_API_KEY%", "%MISTRAL_KEY%"],
-        "patterns": [r'([A-Za-z0-9]{32})'], # Generic pattern, might have false positives
+        "prefixes": [],  # No fixed prefix, skip matched_line filter
+        "patterns": [r'([A-Za-z0-9]{32})'],  # Generic pattern, might have false positives
         "validation_url": "https://api.mistral.ai/v1/models",
         "auth_method": "bearer",
         "output_file": "valid_mistral_keys.txt",
     },
     "deepseek": {
         "queries": ["%DEEPSEEK_API_KEY%", "%DEEPSEEK_KEY%"],
+        "prefixes": ["sk-"],
         "patterns": [r'(sk-[a-f0-9]{32})'],
         "validation_url": "https://api.deepseek.com/v1/models",
         "auth_method": "bearer",
@@ -55,6 +61,7 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
     },
     "groq": {
         "queries": ["%GROQ_API_KEY%", "%GROQ_KEY%"],
+        "prefixes": ["gsk_"],
         "patterns": [r'(gsk_[A-Za-z0-9]{48})'],
         "validation_url": "https://api.groq.com/openai/v1/models",
         "auth_method": "bearer",
@@ -62,6 +69,7 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
     },
     "xai": {
         "queries": ["%XAI_API_KEY%", "%XAI_KEY%"],
+        "prefixes": ["xai-"],
         "patterns": [r'(xai-[A-Za-z0-9]{64})'],
         "validation_url": "https://api.x.ai/v1/models",
         "auth_method": "bearer",
@@ -69,23 +77,42 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
     },
 }
 
-# Generic Functions
 
-def get_candidates_from_db(search_queries: List[str]) -> List[str]:
-    """Retrieves potential API key candidates from the database based on search queries."""
+# Global progress tracking
+progress_lock = threading.Lock()
+provider_progress: Dict[str, Dict[str, Any]] = {}  # provider -> {"checked": int, "total": int, "valid": List[str]}
+
+
+# Generic Functions
+def get_candidates_from_db(queries: List[str], prefixes: List[str]) -> List[str]:
+    """Retrieves potential API key candidates from the database based on queries and prefixes."""
     candidates = []
+    if not queries or (not prefixes and prefixes != []):  # Allow empty prefixes for some providers
+        return candidates
     try:
         with sqlite3.connect(DB_PATH) as con:
             cur = con.cursor()
-            query_placeholders = " OR ".join(["search_query LIKE ?"] * len(search_queries))
-            sql_query = "SELECT matched_line FROM results WHERE " + query_placeholders  # nosec [B608]
-            cur.execute(sql_query, search_queries)
+            query_conditions = []
+            params = []
+            
+            if queries:
+                query_conditions.append("(" + " OR ".join(["search_query LIKE ?"] * len(queries)) + ")")
+                params.extend(queries)
+            
+            if prefixes:
+                query_conditions.append("(" + " OR ".join(["matched_line LIKE ?"] * len(prefixes)) + ")")
+                like_patterns = [f"%{prefix}%" for prefix in prefixes]
+                params.extend(like_patterns)
+            
+            sql_query = "SELECT matched_line FROM results WHERE " + " AND ".join(query_conditions)  # nosec [B608]
+            cur.execute(sql_query, params)
             rows = cur.fetchall()
             candidates = [row[0] for row in rows if row[0]]
     except sqlite3.OperationalError as e:
         print(f"Error connecting to or reading from database: {e}")
         print(f"Please ensure the database '{DB_PATH}' exists and is not corrupted.")
     return candidates
+
 
 def extract_api_keys(line: str, patterns: List[str]) -> List[str]:
     """Extracts API keys from a line of text using a list of regex patterns."""
@@ -96,7 +123,8 @@ def extract_api_keys(line: str, patterns: List[str]) -> List[str]:
             found_keys.extend(matches)
     return found_keys
 
-def is_key_valid(api_key: str, config: Dict[str, Any]) -> bool:
+
+def is_key_valid(api_key: str, config: Dict[str, Any], provider: str = "") -> bool:
     """Validates an API key by making a request to the provider's API."""
     url = config["validation_url"]
     auth_method = config["auth_method"]
@@ -120,82 +148,114 @@ def is_key_valid(api_key: str, config: Dict[str, Any]) -> bool:
         else:
             response = requests.get(url, headers=headers, params=params, timeout=10)
         
-        # For Anthropic, 400 on this endpoint with a valid key means bad request, but key is good.
-        if config.get("is_post") and response.status_code == 400:
-             print(f"  [+] VALID (via 400): {api_key[:10]}...")
-             return True
+        # Debug: print status for non-200 responses
+        if response.status_code != 200 and not (is_post and response.status_code == 400):
+            print(f"DEBUG {provider}: status {response.status_code} for {api_key[:10]}...")
+        
+        # For Anthropic, 400 on POST endpoint means valid key (bad request due to empty data)
+        if is_post and response.status_code == 400:
+            return True
 
         if response.status_code == 200:
-            print(f"  [+] VALID: {api_key[:10]}...")
             return True
         return False
-    except requests.RequestException:
+    except requests.RequestException as e:
+        print(f"DEBUG {provider}: exception {e} for {api_key[:10]}...")
         return False
 
-def process_provider(provider_name: str, config: Dict[str, Any]):
-    """Orchestrates the key validation process for a single provider."""
-    print(f"\nStarting {provider_name.upper()} API key validation")
-    
-    candidates = get_candidates_from_db(config["queries"])
-    if not candidates:
-        print(f"No potential keys found in the database for {provider_name.upper()}.")
-        return
 
-    print(f"Found {len(candidates)} potential lines for {provider_name.upper()}. Extracting keys...")
-    
-    extracted_keys: Set[str] = set()
-    for line in candidates:
-        keys = extract_api_keys(line, config["patterns"])
-        for key in keys:
-            extracted_keys.add(key)
-
-    if not extracted_keys:
-        print(f"Could not extract any keys from the database candidates for {provider_name.upper()}.")
-        return
+def update_progress(provider: str, is_valid: bool, key: str):
+    """Updates progress for a provider and prints the global progress line."""
+    with progress_lock:
+        if is_valid:
+            provider_progress[provider]["valid"].append(key)
+        provider_progress[provider]["checked"] += 1
         
-    unique_keys = sorted(list(extracted_keys))
-    print(f"Extracted {len(unique_keys)} unique keys for {provider_name.upper()}. Now checking their validity in parallel...")
-    
-    valid_keys: List[str] = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_key = {executor.submit(is_key_valid, key, config): key for key in unique_keys}
+        # Build progress line
+        progress_parts = []
+        for prov, data in provider_progress.items():
+            checked = data["checked"]
+            total = data["total"]
+            progress_parts.append(f"{prov.upper()}: {checked}/{total}")
         
-        for i, future in enumerate(concurrent.futures.as_completed(future_to_key)):
-            key = future_to_key[future]
-            try:
-                if future.result():
-                    valid_keys.append(key)
-            except Exception as exc:
-                print(f"  [!] Error validating key {key[:10]}...: {exc}")
-            
-            # Print progress
-            print(f"  Progress: {i + 1}/{len(unique_keys)} keys checked", end='\r')
+        progress_line = " | ".join(progress_parts)
+        print(f"\r{progress_line}", end='', flush=True)
 
-    print("\n" + " " * 50) # Clear progress line
 
-    output_file = config["output_file"]
-    if valid_keys:
-        print(f"Found {len(valid_keys)} valid {provider_name.upper()} API keys. Saving to '{output_file}'.")
-        with open(output_file, 'w') as f:
-            for key in sorted(valid_keys):
-                f.write(key + '\n')
-    else:
-        print(f"No valid {provider_name.upper()} API keys were found.")
+def validate_key_with_provider(key: str, provider: str, config: Dict[str, Any]) -> Tuple[str, bool, str]:
+    """Validates a single key and returns (provider, is_valid, key)."""
+    is_valid = is_key_valid(key, config, provider)
+    return (provider, is_valid, key)
+
 
 def main():
-    """Main function to run validation for all configured providers in parallel."""
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(PROVIDER_CONFIGS)) as executor:
-        # Submit all provider processing tasks to the executor
-        future_to_provider = {executor.submit(process_provider, name, config): name for name, config in PROVIDER_CONFIGS.items()}
+    """Main function: parallel DB queries, then parallel key validation with shared progress."""
+    print("Starting parallel database queries for all providers...")
+    
+    # Step 1: Parallel DB queries to get candidates
+    all_keys_by_provider: Dict[str, List[str]] = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(PROVIDER_CONFIGS)) as db_executor:
+        future_to_provider = {}
+        for name, config in PROVIDER_CONFIGS.items():
+            future = db_executor.submit(get_candidates_from_db, config["queries"], config["prefixes"])
+            future_to_provider[future] = name
         
         for future in concurrent.futures.as_completed(future_to_provider):
-            provider_name = future_to_provider[future]
+            provider = future_to_provider[future]
             try:
-                future.result()  # Wait for the thread to complete and raise exceptions if any
+                candidates = future.result()
+                print(f"DEBUG: {provider.upper()} - Found {len(candidates)} candidate lines")
+                
+                # Extract keys
+                extracted_keys: Set[str] = set()
+                for line in candidates:
+                    keys = extract_api_keys(line, PROVIDER_CONFIGS[provider]["patterns"])
+                    extracted_keys.update(keys)
+                
+                all_keys_by_provider[provider] = sorted(list(extracted_keys))
+                provider_progress[provider] = {"checked": 0, "total": len(all_keys_by_provider[provider]), "valid": []}
+                
             except Exception as exc:
-                print(f" {provider_name.upper()} process generated an exception: {exc}")
+                print(f"DB query for {provider.upper()} failed: {exc}")
+    
+    # Step 2: Collect all keys with provider labels
+    all_tasks = []
+    for provider, keys in all_keys_by_provider.items():
+        for key in keys:
+            all_tasks.append((key, provider, PROVIDER_CONFIGS[provider]))
+    
+    total_keys = len(all_tasks)
+    print(f"\nCollected {total_keys} keys across all providers. Starting parallel validation...")
+    
+    # Step 3: Parallel validation with shared progress
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as val_executor:  # More workers for efficiency
+        future_to_task = {val_executor.submit(validate_key_with_provider, key, provider, config): (key, provider) 
+                         for key, provider, config in all_tasks}
+        
+        for future in concurrent.futures.as_completed(future_to_task):
+            key, provider = future_to_task[future]
+            try:
+                prov, is_valid, k = future.result()
+                update_progress(prov, is_valid, k)
+            except Exception as exc:
+                print(f"\nError validating key {key[:10]}...: {exc}")
+    
+    print("\n\nValidation complete. Saving results...")
+    
+    # Step 4: Save results per provider
+    for provider, data in provider_progress.items():
+        valid_keys = data["valid"]
+        output_file = PROVIDER_CONFIGS[provider]["output_file"]
+        if valid_keys:
+            print(f"{provider.upper()}: Found {len(valid_keys)} valid keys -> {output_file}")
+            with open(output_file, 'w') as f:
+                for key in sorted(valid_keys):
+                    f.write(key + '\n')
+        else:
+            print(f"{provider.upper()}: No valid keys found.")
+    
+    print("All done.")
 
-    print("\nAll providers processed.")
 
 if __name__ == "__main__":
     main()
