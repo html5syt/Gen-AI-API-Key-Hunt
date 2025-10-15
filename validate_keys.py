@@ -65,16 +65,20 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
     "google": {
         "queries": ["%GOOGLE_API_KEY%", "%GEMINI_API_KEY%", "%GEMINI_KEY%"],
         "prefixes": ["AIzaSy"],
-        "patterns": [r'(AIzaSy[A-Za-z0-9\-_]{33})'],
+        "patterns": [
+            r'(AIzaSy[A-Za-z0-9\-_]{33})'  # Updated pattern for Google keys
+        ],
         "validation_url": "https://generativelanguage.googleapis.com/v1beta/models",
-        "auth_method": "key_param",
+        "auth_method": "key_param",  # Updated for key parameter authentication
     },
     "openrouter": {
         "queries": ["%OPENROUTER_API_KEY%", "%OPEN_ROUTER_API_KEY%"],
         "prefixes": ["sk-or-v1-"],
-        "patterns": [r'(sk-or-v1-[a-f0-9]{64})'],
+        "patterns": [
+            r'(sk-or-v1-[a-f0-9]{64})'  # Updated pattern for OpenRouter keys
+        ],
         "validation_url": "https://openrouter.ai/api/v1/models",
-        "auth_method": "bearer",
+        "auth_method": "bearer",  # Bearer token authentication
     },
     "mistral": {
         "queries": ["%MISTRAL_API_KEY%", "%MISTRAL_KEY%"],
@@ -82,6 +86,9 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
         "patterns": [r'([A-Za-z0-9]{32})'],  # Generic pattern, might have false positives
         "validation_url": "https://api.mistral.ai/v1/models",
         "auth_method": "bearer",
+        "is_post": False,  # Ensure GET method is used
+        "post_data": {},  # No POST data required
+        "custom_headers": {"Mistral-Version": "2025-10-01"}  # Example of custom header
     },
     "deepseek": {
         "queries": ["%DEEPSEEK_API_KEY%", "%DEEPSEEK_KEY%"],
@@ -89,6 +96,9 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
         "patterns": [r'(sk-[a-f0-9]{32})'],
         "validation_url": "https://api.deepseek.com/v1/models",
         "auth_method": "bearer",
+        "is_post": False,  # Ensure GET method is used
+        "post_data": {},  # No POST data required
+        "custom_headers": {"DeepSeek-Version": "V3.2-Exp"}  # Example of custom header
     },
     "groq": {
         "queries": ["%GROQ_API_KEY%", "%GROQ_KEY%"],
@@ -96,6 +106,9 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
         "patterns": [r'(gsk_[A-Za-z0-9]{48})'],
         "validation_url": "https://api.groq.com/openai/v1/models",
         "auth_method": "bearer",
+        "is_post": False,  # Ensure GET method is used
+        "post_data": {},  # No POST data required
+        "custom_headers": {"Groq-Version": "2025-10-01"}  # Example of custom header
     },
     "xai": {
         "queries": ["%XAI_API_KEY%", "%XAI_KEY%"],
@@ -170,6 +183,11 @@ def is_key_valid(api_key: str, config: Dict[str, Any], provider: str = "") -> bo
             headers["anthropic-version"] = "2023-06-01"
     elif auth_method == "key_param":
         params["key"] = api_key
+
+    # Add custom headers if present in config
+    custom_headers = config.get("custom_headers", {})
+    for header, value in custom_headers.items():
+        headers[header] = value
 
     try:
         if is_post:
