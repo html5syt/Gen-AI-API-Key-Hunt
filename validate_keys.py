@@ -202,7 +202,7 @@ def is_key_valid(api_key: str, config: Dict[str, Any], provider: str = "") -> bo
         if response.status_code == 200:
             return True
         return False
-    except requests.RequestException as e:
+    except requests.RequestException:
         return False
 
 
