@@ -53,9 +53,12 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
     "anthropic": {
         "queries": ["%ANTHROPIC_API_KEY%", "%CLAUDE_API_KEY%", "%ANTHROPIC_KEY%"],
         "prefixes": ["sk-ant-", "sk-ant-api03-", "apikey_"],
-        "patterns": [r'(sk-ant-api03-[A-Za-z0-9\-_]{95})', r'(sk-ant-[A-Za-z0-9\-_]{44})'],
+        "patterns": [
+            r'(sk-ant-api03-[A-Za-z0-9\-_]{95})',  # Updated pattern for Admin API keys
+            r'(sk-ant-[A-Za-z0-9\-_]{44})'
+        ],
         "validation_url": "https://api.anthropic.com/v1/organizations",  # Changed to free endpoint
-        "auth_method": "x-api-key",
+        "auth_method": "x-api-key",  # Updated for Admin API
         "is_post": False,  # Changed to GET
         "post_data": {},  # Not needed
     },
