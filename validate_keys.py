@@ -43,7 +43,10 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
     "openai": {
         "queries": ["%OPENAI_API_KEY%", "%OPENAI_KEY%", "%OPENAI_SECRET_KEY%", "%OPENAI_TOKEN%"],
         "prefixes": ["sk-", "sk-proj-"],
-        "patterns": [r'(sk-proj-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20})', r'(sk-[A-Za-z0-9]{48})'],
+        "patterns": [
+            r'(sk-proj-[A-Za-z0-9\-_]{48,156})',  # Updated pattern for new keys
+            r'(sk-[A-Za-z0-9]{48})'
+        ],
         "validation_url": "https://api.openai.com/v1/models",
         "auth_method": "bearer",
     },
