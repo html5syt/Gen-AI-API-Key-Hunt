@@ -213,7 +213,10 @@ def update_progress(con: sqlite3.Connection, provider: str, is_valid: bool, key:
             provider_progress[provider]["valid_count"] += 1
             insert_valid_key(con, provider, key)
         provider_progress[provider]["checked"] += 1
-        
+
+        # Clear the line before printing progress
+        print(f"\r{' ' * 80}\r", end='', flush=True)
+
         # Print progress line for this provider
         checked = provider_progress[provider]["checked"]
         total = provider_progress[provider]["total"]
