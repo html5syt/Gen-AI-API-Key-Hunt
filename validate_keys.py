@@ -195,10 +195,6 @@ def is_key_valid(api_key: str, config: Dict[str, Any], provider: str = "") -> bo
         else:
             response = requests.get(url, headers=headers, params=params, timeout=10)
         
-        # Debug: print status for non-200 responses
-        if response.status_code != 200 and not (is_post and response.status_code == 400):
-            print(f"DEBUG {provider}: status {response.status_code} for {api_key[:10]}...")
-        
         # For Anthropic, 400 on POST endpoint means valid key (bad request due to empty data)
         if is_post and response.status_code == 400:
             return True
@@ -207,27 +203,22 @@ def is_key_valid(api_key: str, config: Dict[str, Any], provider: str = "") -> bo
             return True
         return False
     except requests.RequestException as e:
-        print(f"DEBUG {provider}: exception {e} for {api_key[:10]}...")
         return False
 
 
 def update_progress(con: sqlite3.Connection, provider: str, is_valid: bool, key: str):
-    """Updates progress for a provider, inserts valid keys to DB, and prints the global progress line."""
+    """Updates progress for a provider, inserts valid keys to DB, and prints the progress line for that provider."""
     with progress_lock:
         if is_valid:
             provider_progress[provider]["valid_count"] += 1
             insert_valid_key(con, provider, key)
         provider_progress[provider]["checked"] += 1
         
-        # Build progress line
-        progress_parts = []
-        for prov, data in provider_progress.items():
-            checked = data["checked"]
-            total = data["total"]
-            valid_count = data["valid_count"]
-            progress_parts.append(f"{prov.upper()}: {checked}/{total} (valid: {valid_count})")
-        
-        progress_line = " | ".join(progress_parts)
+        # Print progress line for this provider
+        checked = provider_progress[provider]["checked"]
+        total = provider_progress[provider]["total"]
+        valid_count = provider_progress[provider]["valid_count"]
+        progress_line = f"{provider.upper()}: {checked}/{total} (valid: {valid_count})"
         print(f"\r{progress_line}", end='', flush=True)
 
 
@@ -255,7 +246,6 @@ def main():
             provider = future_to_provider[future]
             try:
                 candidates = future.result()
-                print(f"DEBUG: {provider.upper()} - Found {len(candidates)} candidate lines")
                 
                 # Extract keys
                 extracted_keys: Set[str] = set()
@@ -291,7 +281,8 @@ def main():
             except Exception as exc:
                 print(f"\nError validating key {key[:10]}...: {exc}")
     
-    print("\n\nValidation complete. Results saved to database.")
+    print()  # New line after progress
+    print("\nValidation complete. Results saved to database.")
     
     # Step 4: Print summary
     for provider, data in provider_progress.items():
