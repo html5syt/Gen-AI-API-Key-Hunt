@@ -57,10 +57,10 @@ PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
             r'(sk-ant-api03-[A-Za-z0-9\-_]{95})',  # Updated pattern for Admin API keys
             r'(sk-ant-[A-Za-z0-9\-_]{44})'
         ],
-        "validation_url": "https://api.anthropic.com/v1/organizations",  # Changed to free endpoint
-        "auth_method": "x-api-key",  # Updated for Admin API
-        "is_post": False,  # Changed to GET
-        "post_data": {},  # Not needed
+        "validation_url": "https://api.anthropic.com/v1/messages",
+        "auth_method": "x-api-key",
+        "is_post": True,
+        "post_data": {"model": "claude-3-haiku-20240307", "max_tokens": 1, "messages": [{"role": "user", "content": "."}]},
     },
     "google": {
         "queries": ["%GOOGLE_API_KEY%", "%GEMINI_API_KEY%", "%GEMINI_KEY%"],
@@ -194,13 +194,22 @@ def is_key_valid(api_key: str, config: Dict[str, Any], provider: str = "") -> bo
             response = requests.post(url, headers=headers, json=post_data, params=params, timeout=10)
         else:
             response = requests.get(url, headers=headers, params=params, timeout=10)
+
+        if response.status_code == 200:
+            return True
         
+        # Handle provider-specific success codes
+        if provider == "openrouter" and response.status_code == 402: # Payment Required
+            return True
+        if provider == "google" and response.status_code == 400 and "API key not valid" in response.text:
+            return False # Explicitly invalid
+        if provider == "google" and response.status_code == 400: # Other bad requests might imply validity
+             return True
+
         # For Anthropic, 400 on POST endpoint means valid key (bad request due to empty data)
         if is_post and response.status_code == 400:
             return True
 
-        if response.status_code == 200:
-            return True
         return False
     except requests.RequestException:
         return False
