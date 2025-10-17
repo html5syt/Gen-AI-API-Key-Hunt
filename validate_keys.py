@@ -43,7 +43,7 @@ PROVIDER_CONFIGS: Dict[str, Any] = {
     },
     "google": {
         "queries": [],
-        "prefixes": [],
+        "prefixes": ["AIza"],
         "patterns": [r'(AIza[0-9A-Za-z\-_]{35})'],
         "validation": {
             "url": "https://generativelanguage.googleapis.com/v1beta/models",
@@ -140,27 +140,28 @@ def insert_valid_key(con: sqlite3.Connection, provider: str, api_key: str) -> No
 def get_candidates_from_db(queries: List[str], prefixes: List[str]) -> List[str]:
     """Retrieves potential API key candidates from the database based on queries and prefixes."""
     candidates = []
-    if not queries and not prefixes:
-        return candidates
     try:
         with sqlite3.connect(CANDIDATES_DB_PATH) as con:
             cur = con.cursor()
-            query_conditions = []
-            params = []
-            
-            if queries:
-                query_conditions.append("(" + " OR ".join(["search_query LIKE?"] * len(queries)) + ")")
-                params.extend(queries)
-            
-            if prefixes:
-                query_conditions.append("(" + " OR ".join(["matched_line LIKE?"] * len(prefixes)) + ")")
-                like_patterns = [f"%{prefix}%" for prefix in prefixes]
-                params.extend(like_patterns)
-            
-            sql_query = "SELECT matched_line FROM results WHERE " + " AND ".join(query_conditions)
-            cur.execute(sql_query, params)
-            rows = cur.fetchall()
-            candidates = [row[0] for row in rows if row[0]]
+            if not queries and not prefixes:
+                # If there are no prefixes and queries, return all matched_line
+                cur.execute("SELECT matched_line FROM results")
+                rows = cur.fetchall()
+                candidates = [row[0] for row in rows if row[0]]
+            else:
+                query_conditions = []
+                params = []
+                if queries:
+                    query_conditions.append("(" + " OR ".join(["search_query LIKE?"] * len(queries)) + ")")
+                    params.extend(queries)
+                if prefixes:
+                    query_conditions.append("(" + " OR ".join(["matched_line LIKE?"] * len(prefixes)) + ")")
+                    like_patterns = [f"%{prefix}%" for prefix in prefixes]
+                    params.extend(like_patterns)
+                sql_query = "SELECT matched_line FROM results WHERE " + " AND ".join(query_conditions)
+                cur.execute(sql_query, params)
+                rows = cur.fetchall()
+                candidates = [row[0] for row in rows if row[0]]
     except sqlite3.OperationalError as e:
         print(f"\nError reading from database: {e}")
     return candidates
