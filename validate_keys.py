@@ -1,13 +1,112 @@
 import sqlite3
-import requests
 import re
-import concurrent.futures
+import asyncio
+import aiohttp 
 import threading
 from typing import List, Set, Dict, Any, Tuple
 from datetime import datetime
+import concurrent.futures
+from aiohttp import ClientTimeout
+
 
 CANDIDATES_DB_PATH = "4_api_keys.db"
 VALID_DB_PATH = "valid_api_keys.db"
+MAX_CONCURRENT_REQUESTS = 20
+MAX_RETRIES = 3
+INITIAL_BACKOFF_DELAY = 1
+
+
+PROVIDER_CONFIGS: Dict[str, Any] = {
+    "openai": {
+        "queries": [],
+        "prefixes": ["sk-", "sk-proj-"],
+        "patterns": [r'(sk-proj-[A-Za-z0-9\-_]{48,156})', r'(sk-[A-Za-z0-9]{48})'],
+        "validation": {
+            "url": "https://api.openai.com/v1/models",
+            "method": "GET",
+            "auth_header": "Authorization",
+            "auth_scheme": "Bearer {}"
+        }
+    },
+    "anthropic": {
+        "queries": [],
+        "prefixes": ["sk-ant-", "sk-ant-api03-", "apikey_"],
+        "patterns": [r'(sk-ant-api03-[A-Za-z0-9\-_]{95})', r'(sk-ant-[A-Za-z0-9\-_]{44})'],
+        "validation": {
+            "url": "https://api.anthropic.com/v1/messages",
+            "method": "POST",
+            "auth_header": "x-api-key",
+            "auth_scheme": "{}",
+            "extra_headers": {'anthropic-version': '2023-06-01', 'Content-Type': 'application/json'},
+            "body": {"model": "claude-3-haiku-20240307", "max_tokens": 1, "messages": [{"role": "user", "content": "Validate"}]}
+        }
+    },
+    "google": {
+        "queries": [],
+        "prefixes": [],
+        "patterns": [r'(AIza[0-9A-Za-z\-_]{35})'],
+        "validation": {
+            "url": "https://generativelanguage.googleapis.com/v1beta/models",
+            "method": "GET",
+            "auth_method": "key_param"
+        }
+    },
+    "openrouter": {
+        "queries": [],
+        "prefixes": ["sk-or-v1-"],
+        "patterns": [r'(sk-or-v1-[a-f0-9]{64})'],
+        "validation": {
+            "url": "https://openrouter.ai/api/v1/key",
+            "method": "GET",
+            "auth_header": "Authorization",
+            "auth_scheme": "Bearer {}"
+        }
+    },
+    "mistral": {
+        "queries": [],
+        "prefixes": [],
+        "patterns": [r'([A-Za-z0-9]{32})'],
+        "validation": {
+            "url": "https://api.mistral.ai/v1/models",
+            "method": "GET",
+            "auth_header": "Authorization",
+            "auth_scheme": "Bearer {}"
+        }
+    },
+    "deepseek": {
+        "queries": [],
+        "prefixes": ["sk-"],
+        "patterns": [r'(sk-[a-f0-9]{32})'],
+        "validation": {
+            "url": "https://api.deepseek.com/models",
+            "method": "GET",
+            "auth_header": "Authorization",
+            "auth_scheme": "Bearer {}"
+        }
+    },
+    "groq": {
+        "queries": [],
+        "prefixes": ["gsk_"],
+        "patterns": [r'(gsk_[A-Za-z0-9]{48})'],
+        "validation": {
+            "url": "https://api.groq.com/openai/v1/models",
+            "method": "GET",
+            "auth_header": "Authorization",
+            "auth_scheme": "Bearer {}"
+        }
+    },
+    "xai": {
+        "queries": [],
+        "prefixes": ["xai-"],
+        "patterns": [r'(xai-[A-Za-z0-9]{64})'],
+        "validation": {
+            "url": "https://api.x.ai/v1/models",
+            "method": "GET",
+            "auth_header": "Authorization",
+            "auth_scheme": "Bearer {}"
+        }
+    },
+}
 
 
 def init_database_valid(db_path: str) -> sqlite3.Connection:
@@ -33,103 +132,15 @@ def insert_valid_key(con: sqlite3.Connection, provider: str, api_key: str) -> No
     validated_at = datetime.now().isoformat()
     cur.execute("""
         INSERT OR IGNORE INTO valid_keys (provider, api_key, validated_at)
-        VALUES (?, ?, ?)
+        VALUES (?,?,?)
     """, (provider, api_key, validated_at))
     con.commit()
 
 
-# Provider Configurations
-PROVIDER_CONFIGS: Dict[str, Dict[str, Any]] = {
-    "openai": {
-        "queries": ["%OPENAI_API_KEY%", "%OPENAI_KEY%", "%OPENAI_SECRET_KEY%", "%OPENAI_TOKEN%"],
-        "prefixes": ["sk-", "sk-proj-"],
-        "patterns": [
-            r'(sk-proj-[A-Za-z0-9\-_]{48,156})',  # Updated pattern for new keys
-            r'(sk-[A-Za-z0-9]{48})'
-        ],
-        "validation_url": "https://api.openai.com/v1/models",
-        "auth_method": "bearer",
-    },
-    "anthropic": {
-        "queries": ["%ANTHROPIC_API_KEY%", "%CLAUDE_API_KEY%", "%ANTHROPIC_KEY%"],
-        "prefixes": ["sk-ant-", "sk-ant-api03-", "apikey_"],
-        "patterns": [
-            r'(sk-ant-api03-[A-Za-z0-9\-_]{95})',  # Updated pattern for Admin API keys
-            r'(sk-ant-[A-Za-z0-9\-_]{44})'
-        ],
-        "validation_url": "https://api.anthropic.com/v1/messages",
-        "auth_method": "x-api-key",
-        "is_post": True,
-        "post_data": {"model": "claude-3-haiku-20240307", "max_tokens": 1, "messages": [{"role": "user", "content": "."}]},
-    },
-    "google": {
-        "queries": ["%GOOGLE_API_KEY%", "%GEMINI_API_KEY%", "%GEMINI_KEY%"],
-        "prefixes": ["AIzaSy"],
-        "patterns": [
-            r'(AIzaSy[A-Za-z0-9\-_]{33})'  # Updated pattern for Google keys
-        ],
-        "validation_url": "https://generativelanguage.googleapis.com/v1beta/models",
-        "auth_method": "key_param",  # Updated for key parameter authentication
-    },
-    "openrouter": {
-        "queries": ["%OPENROUTER_API_KEY%", "%OPEN_ROUTER_API_KEY%"],
-        "prefixes": ["sk-or-v1-"],
-        "patterns": [
-            r'(sk-or-v1-[a-f0-9]{64})'  # Updated pattern for OpenRouter keys
-        ],
-        "validation_url": "https://openrouter.ai/api/v1/models",
-        "auth_method": "bearer",  # Bearer token authentication
-    },
-    "mistral": {
-        "queries": ["%MISTRAL_API_KEY%", "%MISTRAL_KEY%"],
-        "prefixes": [],  # No fixed prefix, skip matched_line filter
-        "patterns": [r'([A-Za-z0-9]{32})'],  # Generic pattern, might have false positives
-        "validation_url": "https://api.mistral.ai/v1/models",
-        "auth_method": "bearer",
-        "is_post": False,  # Ensure GET method is used
-        "post_data": {},  # No POST data required
-        "custom_headers": {"Mistral-Version": "2025-10-01"}  # Example of custom header
-    },
-    "deepseek": {
-        "queries": ["%DEEPSEEK_API_KEY%", "%DEEPSEEK_KEY%"],
-        "prefixes": ["sk-"],
-        "patterns": [r'(sk-[a-f0-9]{32})'],
-        "validation_url": "https://api.deepseek.com/v1/models",
-        "auth_method": "bearer",
-        "is_post": False,  # Ensure GET method is used
-        "post_data": {},  # No POST data required
-        "custom_headers": {"DeepSeek-Version": "V3.2-Exp"}  # Example of custom header
-    },
-    "groq": {
-        "queries": ["%GROQ_API_KEY%", "%GROQ_KEY%"],
-        "prefixes": ["gsk_"],
-        "patterns": [r'(gsk_[A-Za-z0-9]{48})'],
-        "validation_url": "https://api.groq.com/openai/v1/models",
-        "auth_method": "bearer",
-        "is_post": False,  # Ensure GET method is used
-        "post_data": {},  # No POST data required
-        "custom_headers": {"Groq-Version": "2025-10-01"}  # Example of custom header
-    },
-    "xai": {
-        "queries": ["%XAI_API_KEY%", "%XAI_KEY%"],
-        "prefixes": ["xai-"],
-        "patterns": [r'(xai-[A-Za-z0-9]{64})'],
-        "validation_url": "https://api.x.ai/v1/models",
-        "auth_method": "bearer",
-    },
-}
-
-
-# Global progress tracking
-progress_lock = threading.Lock()
-provider_progress: Dict[str, Dict[str, Any]] = {}  # provider -> {"checked": int, "total": int, "valid_count": int}
-
-
-# Generic Functions
 def get_candidates_from_db(queries: List[str], prefixes: List[str]) -> List[str]:
     """Retrieves potential API key candidates from the database based on queries and prefixes."""
     candidates = []
-    if not queries or (not prefixes and prefixes != []):  # Allow empty prefixes for some providers
+    if not queries and not prefixes:
         return candidates
     try:
         with sqlite3.connect(CANDIDATES_DB_PATH) as con:
@@ -138,26 +149,24 @@ def get_candidates_from_db(queries: List[str], prefixes: List[str]) -> List[str]
             params = []
             
             if queries:
-                query_conditions.append("(" + " OR ".join(["search_query LIKE ?"] * len(queries)) + ")")
+                query_conditions.append("(" + " OR ".join(["search_query LIKE?"] * len(queries)) + ")")
                 params.extend(queries)
             
             if prefixes:
-                query_conditions.append("(" + " OR ".join(["matched_line LIKE ?"] * len(prefixes)) + ")")
+                query_conditions.append("(" + " OR ".join(["matched_line LIKE?"] * len(prefixes)) + ")")
                 like_patterns = [f"%{prefix}%" for prefix in prefixes]
                 params.extend(like_patterns)
             
-            sql_query = "SELECT matched_line FROM results WHERE " + " AND ".join(query_conditions)  # nosec [B608]
+            sql_query = "SELECT matched_line FROM results WHERE " + " AND ".join(query_conditions)
             cur.execute(sql_query, params)
             rows = cur.fetchall()
             candidates = [row[0] for row in rows if row[0]]
     except sqlite3.OperationalError as e:
-        print(f"Error connecting to or reading from database: {e}")
-        print(f"Please ensure the database '{CANDIDATES_DB_PATH}' exists and is not corrupted.")
+        print(f"\nError reading from database: {e}")
     return candidates
 
 
 def extract_api_keys(line: str, patterns: List[str]) -> List[str]:
-    """Extracts API keys from a line of text using a list of regex patterns."""
     found_keys = []
     for pattern in patterns:
         matches = re.findall(pattern, line)
@@ -166,100 +175,107 @@ def extract_api_keys(line: str, patterns: List[str]) -> List[str]:
     return found_keys
 
 
-def is_key_valid(api_key: str, config: Dict[str, Any], provider: str = "") -> bool:
-    """Validates an API key by making a request to the provider's API."""
-    url = config["validation_url"]
-    auth_method = config["auth_method"]
-    headers = {"User-Agent": "api-key-hunt/1.0"}
-    params = {}
-    is_post = config.get("is_post", False)
-    post_data = config.get("post_data", {})
+async def validate_key(session: aiohttp.ClientSession, provider: str, api_key: str) -> Tuple[str, str]:
+    config = PROVIDER_CONFIGS.get(provider.lower())
+    if not config or "validation" not in config:
+        return 'UNKNOWN_PROVIDER', f"Provider '{provider}' not supported."
 
-    if auth_method == "bearer":
-        headers["Authorization"] = f"Bearer {api_key}"
-    elif auth_method == "x-api-key":
-        headers["x-api-key"] = api_key
-        if "anthropic" in url: # Specific header for Anthropic
-            headers["anthropic-version"] = "2023-06-01"
-    elif auth_method == "key_param":
-        params["key"] = api_key
+    val_config = config["validation"]
+    headers = {"User-Agent": "api-key-validator/2.0"}
+    url = val_config['url']
+    method = val_config['method']
+    body = val_config.get('body')
 
-    # Add custom headers if present in config
-    custom_headers = config.get("custom_headers", {})
-    for header, value in custom_headers.items():
-        headers[header] = value
+    auth_method = val_config.get("auth_method")
+    if auth_method == "key_param":
+        url = f"{url}?key={api_key}"
+    else:
+        headers[val_config['auth_header']] = val_config['auth_scheme'].format(api_key)
 
-    try:
-        if is_post:
-            response = requests.post(url, headers=headers, json=post_data, params=params, timeout=10)
-        else:
-            response = requests.get(url, headers=headers, params=params, timeout=10)
+    if 'extra_headers' in val_config:
+        headers.update(val_config['extra_headers'])
 
-        if response.status_code == 200:
-            return True
-        
-        # Handle provider-specific success codes
-        if provider == "openrouter" and response.status_code == 402: # Payment Required
-            return True
-        if provider == "google" and response.status_code == 400 and "API key not valid" in response.text:
-            return False # Explicitly invalid
-        if provider == "google" and response.status_code == 400: # Other bad requests might imply validity
-             return True
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            async with session.request(method, url, headers=headers, json=body, timeout=ClientTimeout(total=15)) as response:
+                if response.status == 200:
+                    return 'VALID', 'Key is valid and active.'
+                elif response.status in [401, 403]:
+                    return 'INVALID', f'Authentication error (Code: {response.status})'
+                elif response.status == 400 and provider.lower() == 'google':
+                    error_text = await response.text()
+                    if "API key not valid" in error_text:
+                        return 'INVALID', f'Invalid key (Code: {response.status})'
+                elif response.status == 402 and provider.lower() == 'openrouter':
+                    return 'QUOTA_EXCEEDED', f'Valid key, but insufficient credits (Code: {response.status})'
+                elif response.status == 429:
+                    if attempt < MAX_RETRIES:
+                        delay = INITIAL_BACKOFF_DELAY * (2 ** attempt)
+                        await asyncio.sleep(delay)
+                        continue
+                    else:
+                        return 'RATE_LIMIT_EXCEEDED', f'Rate limit exceeded after {MAX_RETRIES} retries.'
+                else:
+                    error_text = await response.text()
+                    return 'ERROR', f'Unexpected response (Code: {response.status}): {error_text[:100]}'
+        except aiohttp.ClientError as e:
+            return 'NETWORK_ERROR', f'Network error: {e}'
+        except asyncio.TimeoutError:
+            return 'TIMEOUT_ERROR', 'Request timed out.'
+    
+    return 'ERROR', 'Unknown error after all retries.'
 
-        # For Anthropic, 400 on POST endpoint means valid key (bad request due to empty data)
-        if is_post and response.status_code == 400:
-            return True
 
-        return False
-    except requests.RequestException:
-        return False
+progress_lock = threading.Lock()
+provider_progress: Dict[str, Dict[str, int]] = {}
 
 
-def update_progress(con: sqlite3.Connection, provider: str, is_valid: bool, key: str):
-    """Updates progress for a provider, inserts valid keys to DB, and prints the progress line for that provider."""
+def update_progress(con: sqlite3.Connection, provider: str, status: str, key: str):
     with progress_lock:
-        if is_valid:
+        if status == 'VALID' or status == 'QUOTA_EXCEEDED':
             provider_progress[provider]["valid_count"] += 1
             insert_valid_key(con, provider, key)
+        
         provider_progress[provider]["checked"] += 1
 
-        # Clear the line before printing progress
-        print(f"\r{' ' * 80}\r", end='', flush=True)
-
-        # Print progress line for this provider
-        checked = provider_progress[provider]["checked"]
-        total = provider_progress[provider]["total"]
-        valid_count = provider_progress[provider]["valid_count"]
-        progress_line = f"{provider.upper()}: {checked}/{total} (valid: {valid_count})"
-        print(f"\r{progress_line}", end='', flush=True)
-
-
-def validate_key_with_provider(key: str, provider: str, config: Dict[str, Any]) -> Tuple[str, bool, str]:
-    """Validates a single key and returns (provider, is_valid, key)."""
-    is_valid = is_key_valid(key, config, provider)
-    return (provider, is_valid, key)
+        progress_lines = []
+        for p, data in sorted(provider_progress.items()):
+            checked = data["checked"]
+            total = data["total"]
+            valid_count = data["valid_count"]
+            if total > 0:
+                progress_lines.append(f"{p.upper()}: {checked}/{total} (valid: {valid_count})")
+        
+        print("\r" + " | ".join(progress_lines) + " " * 10, end='', flush=True)
 
 
-def main():
-    """Main function: parallel DB queries, then parallel key validation with shared progress."""
+async def process_and_validate(tasks_to_run: List[Tuple[str, str]], con: sqlite3.Connection):
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
+    
+    async def process_with_semaphore(session: aiohttp.ClientSession, key: str, provider: str):
+        async with semaphore:
+            status, _ = await validate_key(session, provider, key)
+            update_progress(con, provider, status, key)
+
+    async with aiohttp.ClientSession() as session:
+        tasks = [process_with_semaphore(session, key, provider) for key, provider in tasks_to_run]
+        await asyncio.gather(*tasks)
+
+
+async def main():
     print("Starting parallel database queries for all providers...")
     
-    con = init_database_valid(VALID_DB_PATH)
-    
-    # Step 1: Parallel DB queries to get candidates
     all_keys_by_provider: Dict[str, List[str]] = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(PROVIDER_CONFIGS)) as db_executor:
-        future_to_provider = {}
-        for name, config in PROVIDER_CONFIGS.items():
-            future = db_executor.submit(get_candidates_from_db, config["queries"], config["prefixes"])
-            future_to_provider[future] = name
+        future_to_provider = {
+            db_executor.submit(get_candidates_from_db, config["queries"], config["prefixes"]): name
+            for name, config in PROVIDER_CONFIGS.items()
+        }
         
         for future in concurrent.futures.as_completed(future_to_provider):
             provider = future_to_provider[future]
             try:
                 candidates = future.result()
-                
-                # Extract keys
                 extracted_keys: Set[str] = set()
                 for line in candidates:
                     keys = extract_api_keys(line, PROVIDER_CONFIGS[provider]["patterns"])
@@ -267,46 +283,33 @@ def main():
                 
                 all_keys_by_provider[provider] = sorted(list(extracted_keys))
                 provider_progress[provider] = {"checked": 0, "total": len(all_keys_by_provider[provider]), "valid_count": 0}
-                
             except Exception as exc:
-                print(f"DB query for {provider.upper()} failed: {exc}")
+                print(f"\nDB query for {provider.upper()} failed: {exc}")
     
-    # Step 2: Collect all keys with provider labels
-    all_tasks = []
+    all_tasks_for_validation = []
     for provider, keys in all_keys_by_provider.items():
         for key in keys:
-            all_tasks.append((key, provider, PROVIDER_CONFIGS[provider]))
+            all_tasks_for_validation.append((key, provider))
     
-    total_keys = len(all_tasks)
-    print(f"\nCollected {total_keys} keys across all providers. Starting parallel validation...")
+    total_keys = len(all_tasks_for_validation)
+    print(f"\nCollected {total_keys} unique keys. Starting async validation...")
     
-    # Step 3: Parallel validation with shared progress
-    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as val_executor:  # More workers for efficiency
-        future_to_task = {val_executor.submit(validate_key_with_provider, key, provider, config): (key, provider) 
-                         for key, provider, config in all_tasks}
-        
-        for future in concurrent.futures.as_completed(future_to_task):
-            key, provider = future_to_task[future]
-            try:
-                prov, is_valid, k = future.result()
-                update_progress(con, prov, is_valid, k)
-            except Exception as exc:
-                print(f"\nError validating key {key[:10]}...: {exc}")
-    
-    print()  # New line after progress
+    con = init_database_valid(VALID_DB_PATH)
+    try:
+        if all_tasks_for_validation:
+            await process_and_validate(all_tasks_for_validation, con)
+    finally:
+        con.close()
+
+    print() 
     print("\nValidation complete. Results saved to database.")
     
-    # Step 4: Print summary
-    for provider, data in provider_progress.items():
+    for provider, data in sorted(provider_progress.items()):
         valid_count = data["valid_count"]
-        if valid_count > 0:
-            print(f"{provider.upper()}: Found {valid_count} valid keys")
-        else:
-            print(f"{provider.upper()}: No valid keys found.")
+        if data["total"] > 0:
+            print(f"{provider.upper()}: Found {valid_count} valid keys out of {data['total']} checked.")
     
     print("All done.")
-    con.close()
-
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
