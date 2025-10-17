@@ -238,15 +238,15 @@ def update_progress(con: sqlite3.Connection, provider: str, status: str, key: st
         
         provider_progress[provider]["checked"] += 1
 
-        progress_lines = []
-        for p, data in sorted(provider_progress.items()):
-            checked = data["checked"]
-            total = data["total"]
-            valid_count = data["valid_count"]
-            if total > 0:
-                progress_lines.append(f"{p.upper()}: {checked}/{total} (valid: {valid_count})")
-        
-        print("\r" + " | ".join(progress_lines) + " " * 10, end='', flush=True)
+        # Clear the line before printing progress
+        print(f"\r{' ' * 80}\r", end='', flush=True)
+
+        # Print progress line for this provider
+        checked = provider_progress[provider]["checked"]
+        total = provider_progress[provider]["total"]
+        valid_count = provider_progress[provider]["valid_count"]
+        progress_line = f"{provider.upper()}: {checked}/{total} (valid: {valid_count})"
+        print(f"\r{progress_line}", end='', flush=True)
 
 
 async def process_and_validate(tasks_to_run: List[Tuple[str, str]], con: sqlite3.Connection):
