@@ -149,16 +149,19 @@ def get_candidates_from_db(queries: List[str], prefixes: List[str]) -> List[str]
                 rows = cur.fetchall()
                 candidates = [row[0] for row in rows if row[0]]
             else:
-                query_conditions = []
+                conditions_parts = []
                 params = []
                 if queries:
-                    query_conditions.append("(" + " OR ".join(["search_query LIKE?"] * len(queries)) + ")")
+                    conditions_parts.append(f"({' OR '.join(['search_query LIKE ?'] * len(queries))})")
                     params.extend(queries)
                 if prefixes:
-                    query_conditions.append("(" + " OR ".join(["matched_line LIKE?"] * len(prefixes)) + ")")
                     like_patterns = [f"%{prefix}%" for prefix in prefixes]
+                    conditions_parts.append(f"({' OR '.join(['matched_line LIKE ?'] * len(prefixes))})")
                     params.extend(like_patterns)
-                sql_query = "SELECT matched_line FROM results WHERE " + " AND ".join(query_conditions)
+                if conditions_parts:
+                    sql_query = f"SELECT matched_line FROM results WHERE {' AND '.join(conditions_parts)}"
+                else:
+                    sql_query = "SELECT matched_line FROM results"
                 cur.execute(sql_query, params)
                 rows = cur.fetchall()
                 candidates = [row[0] for row in rows if row[0]]
