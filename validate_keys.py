@@ -149,17 +149,19 @@ def get_candidates_from_db(queries: List[str], prefixes: List[str]) -> List[str]
                 rows = cur.fetchall()
                 candidates = [row[0] for row in rows if row[0]]
             else:
-                conditions_parts = []
                 params = []
-                if queries:
-                    conditions_parts.append(f"({' OR '.join(['search_query LIKE ?'] * len(queries))})")
+                if queries and prefixes:
+                    sql_query = f"SELECT matched_line FROM results WHERE ({' OR '.join(['search_query LIKE ?'] * len(queries))}) AND ({' OR '.join(['matched_line LIKE ?'] * len(prefixes))})"  # nosec B608
                     params.extend(queries)
-                if prefixes:
                     like_patterns = [f"%{prefix}%" for prefix in prefixes]
-                    conditions_parts.append(f"({' OR '.join(['matched_line LIKE ?'] * len(prefixes))})")
                     params.extend(like_patterns)
-                if conditions_parts:
-                    sql_query = f"SELECT matched_line FROM results WHERE {' AND '.join(conditions_parts)}"
+                elif queries:
+                    sql_query = f"SELECT matched_line FROM results WHERE {' OR '.join(['search_query LIKE ?'] * len(queries))}"  # nosec B608
+                    params.extend(queries)
+                elif prefixes:
+                    sql_query = f"SELECT matched_line FROM results WHERE {' OR '.join(['matched_line LIKE ?'] * len(prefixes))}"  # nosec B608
+                    like_patterns = [f"%{prefix}%" for prefix in prefixes]
+                    params.extend(like_patterns)
                 else:
                     sql_query = "SELECT matched_line FROM results"
                 cur.execute(sql_query, params)
