@@ -8,7 +8,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 
 try:
     # Optional: load environment variables from a .env file if present
-    from dotenv import load_dotenv  # type: ignore
+    from dotenv import load_dotenv
 
     load_dotenv()
 except ImportError:
