@@ -1,7 +1,7 @@
 import sqlite3
 import re
 import asyncio
-import aiohttp 
+import aiohttp
 import threading
 from typing import List, Set, Dict, Any, Tuple
 from datetime import datetime
@@ -236,7 +236,7 @@ progress_lock = threading.Lock()
 provider_progress: Dict[str, Dict[str, int]] = {}
 
 
-def update_progress(con: sqlite3.Connection, provider: str, status: str, key: str):
+def update_progress(con: sqlite3.Connection, provider: str, status: str, key: str) -> None:
     with progress_lock:
         if status == 'VALID' or status == 'QUOTA_EXCEEDED':
             provider_progress[provider]["valid_count"] += 1
@@ -255,10 +255,10 @@ def update_progress(con: sqlite3.Connection, provider: str, status: str, key: st
         print(f"\r{progress_line}", end='', flush=True)
 
 
-async def process_and_validate(tasks_to_run: List[Tuple[str, str]], con: sqlite3.Connection):
+async def process_and_validate(tasks_to_run: List[Tuple[str, str]], con: sqlite3.Connection) -> None:
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
     
-    async def process_with_semaphore(session: aiohttp.ClientSession, key: str, provider: str):
+    async def process_with_semaphore(session: aiohttp.ClientSession, key: str, provider: str) -> None:
         async with semaphore:
             status, _ = await validate_key(session, provider, key)
             update_progress(con, provider, status, key)
@@ -268,7 +268,7 @@ async def process_and_validate(tasks_to_run: List[Tuple[str, str]], con: sqlite3
         await asyncio.gather(*tasks)
 
 
-async def main():
+async def main() -> None:
     print("Starting parallel database queries for all providers...")
     
     all_keys_by_provider: Dict[str, List[str]] = {}
