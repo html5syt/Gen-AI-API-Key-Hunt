@@ -51,7 +51,7 @@ jobs:
           pip install mypy types-requests
       - name: Run mypy
         run: |
-          mypy --python-version 3.12 --strict search_keys.py
+          mypy --python-version 3.12 --strict .
 
   bandit:
     name: Security Scan (Bandit)
