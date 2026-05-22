@@ -126,8 +126,7 @@ class ScanPipeline:
 
         return searcher.run_channel(channel, emit=emit, should_stop=self._stop_event.is_set)
 
-    def _validator_worker(self, worker_idx: int) -> None:
-        del worker_idx
+    def _validator_worker(self, _worker_idx: int) -> None:
         while not self._stop_event.is_set():
             try:
                 candidate, proxy = self._queue.get(timeout=1)
