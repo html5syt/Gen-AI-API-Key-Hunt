@@ -136,22 +136,27 @@ class Database:
             con.commit()
 
     def list_found(self, limit: int, offset: int, status: str | None = None) -> list[FoundKeyRecord]:
-        params: list[Any] = [limit, offset]
-        where = ""
-        if status:
-            where = "WHERE validation_status = ?"
-            params = [status, limit, offset]
         with self._connect() as con:
             cur = con.cursor()
-            cur.execute(
-                f"""
-                SELECT * FROM found_keys
-                {where}
-                ORDER BY id DESC
-                LIMIT ? OFFSET ?
-                """,
-                params,
-            )
+            if status:
+                cur.execute(
+                    """
+                    SELECT * FROM found_keys
+                    WHERE validation_status = ?
+                    ORDER BY id DESC
+                    LIMIT ? OFFSET ?
+                    """,
+                    [status, limit, offset],
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT * FROM found_keys
+                    ORDER BY id DESC
+                    LIMIT ? OFFSET ?
+                    """,
+                    [limit, offset],
+                )
             rows = cur.fetchall()
         result: list[FoundKeyRecord] = []
         for row in rows:
@@ -174,23 +179,29 @@ class Database:
         return result
 
     def list_validated(self, limit: int, offset: int, provider: str | None = None) -> list[dict[str, str]]:
-        params: list[Any] = [limit, offset]
-        where = ""
-        if provider:
-            where = "WHERE provider = ?"
-            params = [provider, limit, offset]
         with self._connect() as con:
             cur = con.cursor()
-            cur.execute(
-                f"""
-                SELECT provider, api_key, status, last_validated_at
-                FROM validated_keys
-                {where}
-                ORDER BY id DESC
-                LIMIT ? OFFSET ?
-                """,
-                params,
-            )
+            if provider:
+                cur.execute(
+                    """
+                    SELECT provider, api_key, status, last_validated_at
+                    FROM validated_keys
+                    WHERE provider = ?
+                    ORDER BY id DESC
+                    LIMIT ? OFFSET ?
+                    """,
+                    [provider, limit, offset],
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT provider, api_key, status, last_validated_at
+                    FROM validated_keys
+                    ORDER BY id DESC
+                    LIMIT ? OFFSET ?
+                    """,
+                    [limit, offset],
+                )
             rows = cur.fetchall()
         return [
             {
