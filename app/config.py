@@ -91,9 +91,7 @@ def verify_password(value: str, stored_hash: str) -> bool:
         digest = hashlib.pbkdf2_hmac("sha256", value.encode("utf-8"), salt.encode("utf-8"), iterations)
         current = base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
         return hmac.compare_digest(current, expected)
-    # Backward compatibility with old SHA256 format.
-    legacy = hashlib.sha256(value.encode("utf-8")).hexdigest()
-    return hmac.compare_digest(legacy, stored_hash)
+    return False
 
 
 def default_channels() -> list[ChannelConfig]:
