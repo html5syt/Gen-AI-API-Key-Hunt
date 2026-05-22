@@ -1,0 +1,48 @@
+github:
+  tokens:
+    - ghp_xxx1
+    - ghp_xxx2
+  user_agent: github-llm-key-searcher/1.0
+  request_timeout_seconds: 12
+  max_pages: 20
+  page_delay_seconds: 1.0
+
+scanner:
+  interval_seconds: 1800
+  search_workers: 4
+  validate_workers: 8
+
+validation:
+  request_timeout_seconds: 12
+  retries: 2
+  initial_backoff_seconds: 1
+
+web:
+  host: 0.0.0.0
+  port: 8080
+  username: admin
+  password_hash: 8c6976e5b5410415bde908bd4dee15dfb16f9f7bdeb3b0cbf2b5d2f6f5f2f4b3
+  session_secret: please-change-session-secret
+  page_size: 50
+
+api:
+  enabled: true
+  token: please-change-api-token
+
+channels:
+  - name: openai
+    provider: openai
+    query: OPENAI_API_KEY=sk-
+    extract_patterns:
+      - '(sk-proj-[A-Za-z0-9\-_]{48,156})'
+      - '(sk-[A-Za-z0-9]{48})'
+    proxy: ""
+    enabled: true
+  - name: anthropic
+    provider: anthropic
+    query: ANTHROPIC_API_KEY=sk-ant- OR CLAUDE_API_KEY=sk-ant-
+    extract_patterns:
+      - '(sk-ant-api03-[A-Za-z0-9\-_]{95})'
+      - '(sk-ant-[A-Za-z0-9\-_]{44})'
+    proxy: ""
+    enabled: true

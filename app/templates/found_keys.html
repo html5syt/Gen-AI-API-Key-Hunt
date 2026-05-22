@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="box">
+  <h2>已找到 Keys</h2>
+  <form method="get" action="/keys/found">
+    <input name="status" value="{{ status }}" placeholder="按验证状态过滤(VALID/INVALID/PENDING...)" />
+    <button class="btn" type="submit">筛选</button>
+  </form>
+</div>
+<div class="box">
+  <table>
+    <tr><th>ID</th><th>Channel</th><th>Provider</th><th>API Key</th><th>Repo</th><th>Path</th><th>Status</th></tr>
+    {% for row in rows %}
+    <tr>
+      <td>{{ row.id }}</td><td>{{ row.channel_name }}</td><td>{{ row.provider }}</td><td>{{ row.api_key }}</td>
+      <td>{{ row.repository }}</td><td><a href="{{ row.file_url }}" target="_blank">{{ row.file_path }}</a></td><td>{{ row.validation_status }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p><a href="/keys/found?page={{ page + 1 }}&status={{ status }}">下一页</a></p>
+</div>
+{% endblock %}

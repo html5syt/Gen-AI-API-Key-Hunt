@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>登录</title>
+  <style>body{font-family:Arial;background:#f5f7fb}.box{width:360px;margin:100px auto;background:#fff;padding:20px;border-radius:8px}input{width:100%;padding:8px;margin:8px 0}.btn{width:100%;padding:8px;background:#1565c0;color:#fff;border:0;border-radius:6px}</style>
+</head>
+<body>
+  <div class="box">
+    <h3>GitHub LLM Key Searcher 登录</h3>
+    <form method="post" action="/login">
+      <input name="username" placeholder="用户名" required />
+      <input type="password" name="password" placeholder="密码" required />
+      <button class="btn" type="submit">登录</button>
+    </form>
+    {% if error %}<p style="color:#c62828">{{ error }}</p>{% endif %}
+  </div>
+</body>
+</html>

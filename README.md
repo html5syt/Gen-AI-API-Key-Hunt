@@ -1,130 +1,111 @@
-# Gen-AI-API-Key-Hunt
+# GitHub LLM Key Searcher
 
-A small utility that searches public GitHub repositories for potential Gen AI API key leaks. It crafts focused queries for popular providers, walks paginated results, and stores concise metadata in a SQLite database. The script uses adaptive search to bypass GitHub's 1000-result limit by recursively expanding queries when needed. This project is intended for security researchers and developers who need to triage potential secrets exposure in public code.
+一个完整的 GitHub LLM Key Searcher：支持后台常驻扫描、发现与验证并行、WebUI 管理后台、API 拉取已验证 keys、Docker 部署，以及配置文件/GUI 双向配置。
 
-## Disclaimer and Compliance
+## 主要功能
 
-This tool is intended for educational and security research purposes only. It is designed to help security professionals and developers identify potential secret leaks in public repositories they are authorized to analyze.
+- **查找与验证并行**：扫描任务发现 key 后立即进入验证队列，后台并发验证。
+- **WebUI 后台（可配置端口）**：
+  - 登录鉴权（用户名+密码）
+  - 查看已找到 keys / 已验证 keys
+  - 批量导出已验证 keys（CSV）
+  - 数据看板（总量、状态分布、按 provider 统计）
+- **API 接口**：通过 Token 鉴权获取已验证 keys 与统计数据。
+- **配置文件替代环境变量**：全部核心参数统一在 `config.yaml`，并支持在 GUI 在线修改。
+- **后台常驻扫描 + 扫描周期可配**：默认按周期持续扫描，也支持手动立即触发。
+- **渠道级独立代理**：每个渠道单独配置 `proxy`。
+- **自定义渠道与搜索表达式**：可在 GUI 的渠道 JSON 配置中自定义 provider/query/regex。
+- **Docker 镜像支持**：可直接容器化运行。
 
-Users are solely responsible for ensuring their use of this tool complies with all applicable laws and terms of service, including the [GitHub Acceptable Use Policies](https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies). The author assumes no liability for any misuse or damage caused by this project.
-
-The script is designed to operate within GitHub's policies by adhering to the following principles:
-
-- **Purpose of Use**: The script is intended for security research, a permissible use of public, non-personal information under **Section 7** of GitHub's policies.
-- **API Usage**: It exclusively uses the official GitHub REST API for data collection, which is the approved method for automated access.
-- **Rate Limiting**: It honors API rate limits to avoid placing an undue burden on GitHub's infrastructure, in line with **Section 4**.
-- **Authorized Access**: The tool only accesses publicly available data and does not attempt to gain unauthorized access to private information, complying with **Section 5**.
-
-This script does not store, validate, or use the discovered keys; it only identifies their location. It is the user's responsibility to handle any discovered information ethically and legally.
-
-## Deployment
-
-This is a Python script, no special deployment is required. To run locally from the repository root:
-
-```bash
-python3 ./search_keys.py
-```
-
-On Windows PowerShell:
-
-```powershell
-python .\search_keys.py
-```
-
-## Environment Variables
-
-To run this project, configure GitHub tokens using environment variables or a `.env` file.
-
-Required (choose one approach):
-
-- `GITHUB_TOKENS` — comma‑separated list of tokens for rotation (e.g. `ghp_xxx1,ghp_xxx2`)
-- `GITHUB_TOKEN` — a single token (used if `GITHUB_TOKENS` is not set)
-
-Optional: install `python-dotenv` and place a `.env` in the repository root (see `.env.example`):
+## 项目结构
 
 ```text
-GITHUB_TOKENS=ghp_xxx1,ghp_xxx2
-# or
-# GITHUB_TOKEN=ghp_xxx
+app/
+  config.py        # 配置模型与读写
+  database.py      # SQLite 存储与查询
+  searcher.py      # GitHub 搜索
+  validator.py     # Provider key 验证
+  pipeline.py      # 扫描调度、搜索/验证并行流水线
+  web.py           # FastAPI WebUI + API
+  main.py          # 启动入口
+  templates/       # WebUI 模板
+search_keys.py     # 兼容入口（启动新系统）
+validate_keys.py   # 兼容入口（启动新系统）
 ```
 
-The script rotates multiple tokens round‑robin and honors GitHub rate limits. With one token, it behaves the same without rotation.
+## 快速开始
 
-## Optional Configuration
-
-You can fine-tune the script's behavior with these optional environment variables:
-
-- **`REQUEST_TIMEOUT_SECONDS`**: Timeout for API requests in seconds. Default: `10`.
-- **`PAGE_DELAY_SECONDS`**: Delay between paginated search requests. Default: `2`.
-- **`MAX_PAGES`**: Maximum number of pages to fetch for a single query branch. Default: `20`.
-- **`DEFAULT_BACKOFF_SECONDS`**: Initial delay in seconds when a token is rate-limited without a `Retry-After` header. Default: `60`.
-- **`MAX_BACKOFF_SECONDS`**: Maximum backoff delay for exponential backoff. Default: `600`.
-- **`GITHUB_USER_AGENT`**: Custom User-Agent string for API requests. Default: `api-key-hunt/1.0`.
-
-## FAQ
-
-### How does token rotation work?
-
-The script selects tokens in a round‑robin order and reads `X‑RateLimit‑Remaining`/`X‑RateLimit‑Reset`. Exhausted tokens are cooled down until reset. If all tokens are limited, the script waits and resumes automatically.
-
-### How does the adaptive search work?
-
-GitHub's Search API caps results at 1000 per query. To find more potential leaks, the script first probes the total count for a base query (e.g., `OPENAI_API_KEY=sk-`). If the count is 1000 or more, it recursively expands the search by appending one character at a time (e.g., `sk-a`, `sk-b`, etc.) until each sub-query returns fewer than 1000 results. This partitions the search space to uncover a more comprehensive set of results.
-
-### What providers are covered?
-
-Common ones like OpenAI, Anthropic, Google/Gemini, OpenRouter, Mistral, DeepSeek, Grok/Groq, and xAI. It combines typical environment variable names with known key prefixes and expands the first character after prefixes to avoid the 1000‑result window.
-
-## Installation
-
-Use a recent Python (3.10+). Optionally create a virtual environment. Install dependencies (for example, `requests`; `python-dotenv` is optional).
+### 1) 安装依赖
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # PowerShell: .venv\Scripts\Activate.ps1
-pip install -U requests python-dotenv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-## Run Locally
-
-Clone the project and change directory:
+### 2) 初始化配置
 
 ```bash
-git clone https://github.com/Aletheia-Praxis/api-key-hunt
-cd api-key-hunt
+cp config.yaml.example config.yaml
 ```
 
-Set environment variables (examples) and run the script:
+编辑 `config.yaml`，至少填入：
+
+- `github.tokens`
+- `web.username` / `web.password_hash`
+- `web.session_secret`
+- `api.token`
+
+> 默认密码 hash 对应 `admin`，建议立即修改。
+
+### 3) 启动
 
 ```bash
-export GITHUB_TOKENS="ghp_xxx1,ghp_xxx2"   # PowerShell: $env:GITHUB_TOKENS = "ghp_xxx1,ghp_xxx2"
-python3 ./search_keys.py
+python -m app.main --config config.yaml --db data/app.db
 ```
 
-## Usage/Examples
+启动后访问：`http://<host>:<port>`（默认 `http://127.0.0.1:8080`）
 
-Run directly as a script to generate the DB results file:
+## WebUI 功能
+
+- `/login` 登录
+- `/` 数据看板
+- `/keys/found` 查看已找到 keys
+- `/keys/validated` 查看已验证 keys
+- `/export/validated.csv` 导出 CSV
+- `/config` 在线修改配置（包括扫描周期、渠道表达式、渠道代理等）
+
+## API
+
+请求头：`X-API-Token: <api.token>`
+
+- `GET /api/v1/validated-keys?limit=100&offset=0&provider=`
+- `GET /api/v1/stats`
+
+## Docker
+
+### 构建
 
 ```bash
-python3 ./search_keys.py
+docker build -t github-llm-key-searcher:latest .
 ```
 
-Or import the function in Python to run a single query programmatically:
+### 运行
 
-```python
-from search_keys import adaptive_search, init_database
-
-# Initialize a database connection
-con = init_database("my_results.db")
-
-# Run a single adaptive search
-results_count = adaptive_search(con, "OPENAI_API_KEY=sk-")
-print(f"Found {results_count} new items")
-
-# Close the connection when done
-con.close()
+```bash
+docker run --rm -p 8080:8080 \
+  -v $(pwd)/config.yaml:/app/config.yaml \
+  -v $(pwd)/data:/app/data \
+  github-llm-key-searcher:latest
 ```
 
-## License
+## 安全提示
 
-[MIT](./LICENSE)
+- 请仅用于授权范围内的安全研究与自检。
+- Web 密码请使用强口令（存储为 SHA256 hash）。
+- API Token 请设置高强度随机值并妥善保管。
+- 渠道配置支持自定义表达式，请谨慎配置避免误采集。
+
+## 许可证
+
+MIT

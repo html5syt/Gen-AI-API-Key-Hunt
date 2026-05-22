@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="box">
+  <h2>已验证 Keys</h2>
+  <form method="get" action="/keys/validated">
+    <input name="provider" value="{{ provider }}" placeholder="按 provider 过滤" />
+    <button class="btn" type="submit">筛选</button>
+  </form>
+</div>
+<div class="box">
+  <table>
+    <tr><th>Provider</th><th>API Key</th><th>Status</th><th>Last Validated</th></tr>
+    {% for row in rows %}
+    <tr><td>{{ row.provider }}</td><td>{{ row.api_key }}</td><td>{{ row.status }}</td><td>{{ row.last_validated_at }}</td></tr>
+    {% endfor %}
+  </table>
+  <p><a href="/keys/validated?page={{ page + 1 }}&provider={{ provider }}">下一页</a></p>
+</div>
+{% endblock %}

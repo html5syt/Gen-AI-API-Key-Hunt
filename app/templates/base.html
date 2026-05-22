@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>GitHub LLM Key Searcher</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;margin:20px;background:#f5f7fb;color:#222}
+    a{color:#1565c0;text-decoration:none}
+    .nav a{margin-right:14px}
+    .box{background:#fff;padding:16px;border-radius:8px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{border:1px solid #ddd;padding:6px;text-align:left}
+    textarea,input{width:100%;padding:8px;box-sizing:border-box}
+    .muted{color:#666;font-size:12px}
+    .btn{display:inline-block;padding:8px 12px;border:0;border-radius:6px;background:#1565c0;color:#fff;cursor:pointer}
+  </style>
+</head>
+<body>
+  <div class="nav box">
+    <a href="/">看板</a>
+    <a href="/keys/found">已找到 Keys</a>
+    <a href="/keys/validated">已验证 Keys</a>
+    <a href="/config">配置</a>
+    <a href="/export/validated.csv">导出已验证 CSV</a>
+    <a href="/logout">退出</a>
+  </div>
+  {% block content %}{% endblock %}
+</body>
+</html>
