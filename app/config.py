@@ -100,19 +100,19 @@ def default_channels() -> list[ChannelConfig]:
             name="openai",
             provider="openai",
             query="OPENAI_API_KEY=sk-",
-            extract_patterns=[r"(sk-proj-[A-Za-z0-9\\-_]{48,156})", r"(sk-[A-Za-z0-9]{48})"],
+            extract_patterns=[r"(sk-proj-[A-Za-z0-9_-]{48,156})", r"(sk-[A-Za-z0-9]{48})"],
         ),
         ChannelConfig(
             name="anthropic",
             provider="anthropic",
             query="ANTHROPIC_API_KEY=sk-ant- OR CLAUDE_API_KEY=sk-ant-",
-            extract_patterns=[r"(sk-ant-api03-[A-Za-z0-9\\-_]{95})", r"(sk-ant-[A-Za-z0-9\\-_]{44})"],
+            extract_patterns=[r"(sk-ant-api03-[A-Za-z0-9_-]{95})", r"(sk-ant-[A-Za-z0-9_-]{44})"],
         ),
         ChannelConfig(
             name="google",
             provider="google",
             query="GOOGLE_API_KEY=AIza OR GEMINI_API_KEY=AIza",
-            extract_patterns=[r"(AIza[0-9A-Za-z\\-_]{35})"],
+            extract_patterns=[r"(AIza[0-9A-Za-z_-]{35})"],
         ),
         ChannelConfig(
             name="openrouter",

@@ -232,9 +232,30 @@ class Database:
         }
 
     def export_validated_csv(self, output_path: str) -> int:
-        rows = self.list_validated(limit=1000000, offset=0)
-        with open(output_path, "w", newline="", encoding="utf-8") as file_obj:
+        written = 0
+        with self._connect() as con, open(output_path, "w", newline="", encoding="utf-8") as file_obj:
+            cur = con.cursor()
+            cur.execute(
+                """
+                SELECT provider, api_key, status, last_validated_at
+                FROM validated_keys
+                ORDER BY id DESC
+                """
+            )
             writer = csv.DictWriter(file_obj, fieldnames=["provider", "api_key", "status", "last_validated_at"])
             writer.writeheader()
-            writer.writerows(rows)
-        return len(rows)
+            while True:
+                rows = cur.fetchmany(1000)
+                if not rows:
+                    break
+                for row in rows:
+                    writer.writerow(
+                        {
+                            "provider": str(row["provider"]),
+                            "api_key": str(row["api_key"]),
+                            "status": str(row["status"]),
+                            "last_validated_at": str(row["last_validated_at"]),
+                        }
+                    )
+                    written += 1
+        return written
