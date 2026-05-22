@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+import base64
 import hashlib
+import hmac
 from pathlib import Path
+import secrets
 import threading
 from typing import Any
 
@@ -68,8 +71,29 @@ class AppConfig:
     channels: list[ChannelConfig] = field(default_factory=list)
 
 
-def sha256_text(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+def hash_password(value: str, iterations: int = 260000) -> str:
+    salt = base64.urlsafe_b64encode(secrets.token_bytes(16)).decode("ascii").rstrip("=")
+    digest = hashlib.pbkdf2_hmac("sha256", value.encode("utf-8"), salt.encode("utf-8"), iterations)
+    digest_b64 = base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+    return f"pbkdf2_sha256${iterations}${salt}${digest_b64}"
+
+
+def verify_password(value: str, stored_hash: str) -> bool:
+    if stored_hash.startswith("pbkdf2_sha256$"):
+        parts = stored_hash.split("$", 3)
+        if len(parts) != 4:
+            return False
+        _, iter_raw, salt, expected = parts
+        try:
+            iterations = int(iter_raw)
+        except ValueError:
+            return False
+        digest = hashlib.pbkdf2_hmac("sha256", value.encode("utf-8"), salt.encode("utf-8"), iterations)
+        current = base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+        return hmac.compare_digest(current, expected)
+    # Backward compatibility with old SHA256 format.
+    legacy = hashlib.sha256(value.encode("utf-8")).hexdigest()
+    return hmac.compare_digest(legacy, stored_hash)
 
 
 def default_channels() -> list[ChannelConfig]:
@@ -121,7 +145,7 @@ def default_channels() -> list[ChannelConfig]:
 
 def default_config() -> AppConfig:
     config = AppConfig(channels=default_channels())
-    config.web.password_hash = sha256_text("admin")
+    config.web.password_hash = hash_password("admin")
     return config
 
 

@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.config import AppConfig, ChannelConfig, ConfigManager, sha256_text
+from app.config import AppConfig, ChannelConfig, ConfigManager, hash_password, verify_password
 from app.database import Database
 from app.pipeline import ScanPipeline
 
@@ -59,7 +59,7 @@ def create_app(config_path: str, db_path: str) -> FastAPI:
         username = _read_form_field(form_data, "username")
         password = _read_form_field(form_data, "password")
         cfg = config_manager.get()
-        if username == cfg.web.username and sha256_text(password) == cfg.web.password_hash:
+        if username == cfg.web.username and verify_password(password, cfg.web.password_hash):
             request.session["logged_in"] = True
             return RedirectResponse(url="/", status_code=302)
 
@@ -154,7 +154,7 @@ def create_app(config_path: str, db_path: str) -> FastAPI:
         cfg.web.page_size = int(_read_form_field(form_data, "web_page_size", str(cfg.web.page_size)))
         new_password = _read_form_field(form_data, "web_password")
         if new_password.strip():
-            cfg.web.password_hash = sha256_text(new_password.strip())
+            cfg.web.password_hash = hash_password(new_password.strip())
 
         cfg.api.enabled = _read_form_field(form_data, "api_enabled", "off") == "on"
         cfg.api.token = _read_form_field(form_data, "api_token", cfg.api.token)

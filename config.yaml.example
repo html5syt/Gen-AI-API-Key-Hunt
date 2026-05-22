@@ -21,7 +21,7 @@ web:
   host: 127.0.0.1
   port: 8080
   username: admin
-  password_hash: 8c6976e5b5410415bde908bd4dee15dfb16f9f7bdeb3b0cbf2b5d2f6f5f2f4b3
+  password_hash: pbkdf2_sha256$260000$replace-with-random-salt$replace-with-derived-hash
   session_secret: please-change-session-secret
   page_size: 50
 
