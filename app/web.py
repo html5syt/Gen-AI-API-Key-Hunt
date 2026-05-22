@@ -66,7 +66,7 @@ def create_app(config_path: str, db_path: str) -> FastAPI:
         return templates.TemplateResponse(
             request=request,
             name="login.html",
-            context={"error": "用户名或密码错误"},
+            context={"error": "Invalid username or password."},
             status_code=401,
         )
 
@@ -183,7 +183,7 @@ def create_app(config_path: str, db_path: str) -> FastAPI:
         return templates.TemplateResponse(
             request=request,
             name="config.html",
-            context={"cfg": cfg, "channels_json": channels_json, "message": "配置已保存（端口变更需重启生效）"},
+            context={"cfg": cfg, "channels_json": channels_json, "message": "Configuration saved (restart required for port changes)."},
         )
 
     @app.post("/scan/run-now", dependencies=[Depends(require_login_dependency)])

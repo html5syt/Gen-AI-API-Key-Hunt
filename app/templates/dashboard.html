@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="box">
-  <h2>数据看板</h2>
-  <p>总发现：<b>{{ db_stats.total_found }}</b> ｜ 总验证有效：<b>{{ db_stats.total_validated }}</b></p>
-  <p>队列长度：<b>{{ runtime.queue_size }}</b> ｜ 验证执行次数：<b>{{ runtime.total_validation_runs }}</b></p>
-  <form method="post" action="/scan/run-now"><button class="btn" type="submit">立即触发扫描</button></form>
+  <h2>Dashboard</h2>
+  <p>Total found: <b>{{ db_stats.total_found }}</b> | Total validated: <b>{{ db_stats.total_validated }}</b></p>
+  <p>Queue size: <b>{{ runtime.queue_size }}</b> | Validation runs: <b>{{ runtime.total_validation_runs }}</b></p>
+  <form method="post" action="/scan/run-now"><button class="btn" type="submit">Run Scan Now</button></form>
 </div>
 <div class="box">
-  <h3>按渠道统计</h3>
+  <h3>Found by Provider</h3>
   <table><tr><th>Provider</th><th>Count</th></tr>
   {% for row in db_stats.found_by_provider %}
     <tr><td>{{ row.provider }}</td><td>{{ row.count }}</td></tr>
@@ -15,7 +15,7 @@
   </table>
 </div>
 <div class="box">
-  <h3>验证状态统计</h3>
+  <h3>Validation Status Breakdown</h3>
   <table><tr><th>Status</th><th>Count</th></tr>
   {% for row in db_stats.status_breakdown %}
     <tr><td>{{ row.status }}</td><td>{{ row.count }}</td></tr>

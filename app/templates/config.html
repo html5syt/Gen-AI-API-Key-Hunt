@@ -1,43 +1,43 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="box">
-  <h2>配置中心</h2>
+  <h2>Configuration</h2>
   {% if message %}<p style="color:#2e7d32">{{ message }}</p>{% endif %}
   <form method="post" action="/config">
     <h3>GitHub</h3>
-    <label>Tokens(逗号分隔)</label><input name="github_tokens" value="{{ cfg.github.tokens | join(',') }}" />
+    <label>Tokens (comma separated)</label><input name="github_tokens" value="{{ cfg.github.tokens | join(',') }}" />
     <label>User-Agent</label><input name="github_user_agent" value="{{ cfg.github.user_agent }}" />
-    <label>请求超时秒</label><input name="github_timeout" value="{{ cfg.github.request_timeout_seconds }}" />
-    <label>最大分页</label><input name="github_max_pages" value="{{ cfg.github.max_pages }}" />
-    <label>分页间隔秒</label><input name="github_page_delay" value="{{ cfg.github.page_delay_seconds }}" />
+    <label>Request timeout seconds</label><input name="github_timeout" value="{{ cfg.github.request_timeout_seconds }}" />
+    <label>Max pages</label><input name="github_max_pages" value="{{ cfg.github.max_pages }}" />
+    <label>Page delay seconds</label><input name="github_page_delay" value="{{ cfg.github.page_delay_seconds }}" />
 
-    <h3>扫描调度</h3>
-    <label>扫描周期秒</label><input name="scanner_interval" value="{{ cfg.scanner.interval_seconds }}" />
-    <label>搜索并发</label><input name="search_workers" value="{{ cfg.scanner.search_workers }}" />
-    <label>验证并发</label><input name="validate_workers" value="{{ cfg.scanner.validate_workers }}" />
+    <h3>Scanner</h3>
+    <label>Scan interval seconds</label><input name="scanner_interval" value="{{ cfg.scanner.interval_seconds }}" />
+    <label>Search workers</label><input name="search_workers" value="{{ cfg.scanner.search_workers }}" />
+    <label>Validation workers</label><input name="validate_workers" value="{{ cfg.scanner.validate_workers }}" />
 
-    <h3>验证</h3>
-    <label>验证超时秒</label><input name="validation_timeout" value="{{ cfg.validation.request_timeout_seconds }}" />
-    <label>重试次数</label><input name="validation_retries" value="{{ cfg.validation.retries }}" />
-    <label>退避初始秒</label><input name="validation_backoff" value="{{ cfg.validation.initial_backoff_seconds }}" />
+    <h3>Validation</h3>
+    <label>Validation timeout seconds</label><input name="validation_timeout" value="{{ cfg.validation.request_timeout_seconds }}" />
+    <label>Retry count</label><input name="validation_retries" value="{{ cfg.validation.retries }}" />
+    <label>Initial backoff seconds</label><input name="validation_backoff" value="{{ cfg.validation.initial_backoff_seconds }}" />
 
     <h3>Web</h3>
     <label>Host</label><input name="web_host" value="{{ cfg.web.host }}" />
     <label>Port</label><input name="web_port" value="{{ cfg.web.port }}" />
-    <label>用户名</label><input name="web_username" value="{{ cfg.web.username }}" />
-    <label>新密码(留空不改)</label><input type="password" name="web_password" value="" />
-    <label>Session Secret</label><input name="web_session_secret" value="{{ cfg.web.session_secret }}" />
-    <label>分页大小</label><input name="web_page_size" value="{{ cfg.web.page_size }}" />
+    <label>Username</label><input name="web_username" value="{{ cfg.web.username }}" />
+    <label>New password (leave empty to keep current)</label><input type="password" name="web_password" value="" />
+    <label>Session secret</label><input name="web_session_secret" value="{{ cfg.web.session_secret }}" />
+    <label>Page size</label><input name="web_page_size" value="{{ cfg.web.page_size }}" />
 
     <h3>API</h3>
-    <label><input type="checkbox" name="api_enabled" {% if cfg.api.enabled %}checked{% endif %} /> 启用 API</label>
-    <label>API Token</label><input name="api_token" value="{{ cfg.api.token }}" />
+    <label><input type="checkbox" name="api_enabled" {% if cfg.api.enabled %}checked{% endif %} /> Enable API</label>
+    <label>API token</label><input name="api_token" value="{{ cfg.api.token }}" />
 
-    <h3>渠道配置(JSON)</h3>
-    <p class="muted">支持自定义渠道、独立代理(proxy)和搜索表达式(query)</p>
+    <h3>Channels JSON</h3>
+    <p class="muted">Supports custom channels, per-channel proxy (proxy), and custom query expressions (query).</p>
     <textarea name="channels_json" rows="18">{{ channels_json }}</textarea>
 
-    <p><button class="btn" type="submit">保存配置</button></p>
+    <p><button class="btn" type="submit">Save configuration</button></p>
   </form>
 </div>
 {% endblock %}

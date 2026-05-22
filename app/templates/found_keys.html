@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="box">
-  <h2>已找到 Keys</h2>
+  <h2>Found Keys</h2>
   <form method="get" action="/keys/found">
-    <input name="status" value="{{ status }}" placeholder="按验证状态过滤(VALID/INVALID/PENDING...)" />
-    <button class="btn" type="submit">筛选</button>
+    <input name="status" value="{{ status }}" placeholder="Filter by status (VALID/INVALID/PENDING...)" />
+    <button class="btn" type="submit">Filter</button>
   </form>
 </div>
 <div class="box">
@@ -17,6 +17,6 @@
     </tr>
     {% endfor %}
   </table>
-  <p><a href="/keys/found?page={{ page + 1 }}&status={{ status }}">下一页</a></p>
+  <p><a href="/keys/found?page={{ page + 1 }}&status={{ status }}">Next page</a></p>
 </div>
 {% endblock %}
