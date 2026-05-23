@@ -1,25 +1,93 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="box">
-  <h2>Dashboard</h2>
-  <p>Total found: <b>{{ db_stats.total_found }}</b> | Total validated: <b>{{ db_stats.total_validated }}</b></p>
-  <p>Queue size: <b>{{ runtime.queue_size }}</b> | Validation runs: <b>{{ runtime.total_validation_runs }}</b></p>
-  <form method="post" action="/scan/run-now"><button class="btn" type="submit">Run Scan Now</button></form>
+<div class="grid grid-3">
+  <div class="box stat"><span class="pill">{{ t('nav_found_keys') }}</span><strong>{{ db_stats.total_found }}</strong>
+    <div class="muted">{{ t('dashboard_found_total') }}</div>
+  </div>
+  <div class="box stat"><span class="pill">{{ t('nav_validated_keys') }}</span><strong>{{ db_stats.total_validated
+      }}</strong>
+    <div class="muted">{{ t('dashboard_validated_total') }}</div>
+  </div>
+  <div class="box stat"><span class="pill">{{ t('nav_validation_logs') }}</span><strong>{{
+      db_stats.total_validation_logs }}</strong>
+    <div class="muted">{{ t('dashboard_log_count') }}</div>
+  </div>
+  <div class="box stat"><span class="pill">{{ t('dashboard_queue_size') }}</span><strong>{{ runtime.queue_size
+      }}</strong>
+    <div class="muted">{{ t('dashboard_queue_size') }}</div>
+  </div>
 </div>
+
 <div class="box">
-  <h3>Found by Provider</h3>
-  <table><tr><th>Provider</th><th>Count</th></tr>
-  {% for row in db_stats.found_by_provider %}
-    <tr><td>{{ row.provider }}</td><td>{{ row.count }}</td></tr>
-  {% endfor %}
-  </table>
-</div>
-<div class="box">
-  <h3>Validation Status Breakdown</h3>
-  <table><tr><th>Status</th><th>Count</th></tr>
-  {% for row in db_stats.status_breakdown %}
-    <tr><td>{{ row.status }}</td><td>{{ row.count }}</td></tr>
-  {% endfor %}
-  </table>
+  <div class="split" style="justify-content:space-between;">
+    <div>
+      <h2 style="margin-bottom:4px;">{{ t('dashboard_title') }}</h2>
+      <div class="muted">{{ t('dashboard_subtitle') }}</div>
+    </div>
+    <form method="post" action="/scan/run-now">
+      <button class="btn" type="submit">{{ t('dashboard_run_now') }}</button>
+    </form>
+    </div>
+    </div>
+    
+    <div class="grid grid-2">
+  <div class="box">
+    <h3>{{ t('dashboard_found_by_provider') }}</h3>
+    <table>
+      <tr>
+        <th>
+          {% set next_order = 'asc' if provider_sort == 'provider' and provider_order == 'desc' else 'desc' %}
+          <a class="sort-link"
+            href="/?provider_sort=provider&provider_order={{ next_order }}&status_sort={{ status_sort }}&status_order={{ status_order }}">
+            {{ t('col_provider') }}{% if provider_sort == 'provider' %}<span class="sort-arrow">{{ '▲' if provider_order ==
+              'asc' else '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}
+          </a>
+        </th>
+        <th>
+          {% set next_order = 'asc' if provider_sort == 'count' and provider_order == 'desc' else 'desc' %}
+          <a class="sort-link"
+            href="/?provider_sort=count&provider_order={{ next_order }}&status_sort={{ status_sort }}&status_order={{ status_order }}">
+            {{ t('col_count') }}{% if provider_sort == 'count' %}<span class="sort-arrow">{{ '▲' if provider_order == 'asc'
+              else '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}
+          </a>
+        </th>
+      </tr>
+      {% for row in db_stats.found_by_provider %}
+      <tr>
+        <td>{{ row.provider }}</td>
+        <td>{{ row.count }}</td>
+      </tr>
+      {% endfor %}
+      </table>
+      </div>
+      <div class="box">
+    <h3>{{ t('dashboard_validation_breakdown') }}</h3>
+    <table>
+      <tr>
+        <th>
+          {% set next_order = 'asc' if status_sort == 'status' and status_order == 'desc' else 'desc' %}
+          <a class="sort-link"
+            href="/?provider_sort={{ provider_sort }}&provider_order={{ provider_order }}&status_sort=status&status_order={{ next_order }}">
+            {{ t('col_status') }}{% if status_sort == 'status' %}<span class="sort-arrow">{{ '▲' if status_order == 'asc'
+              else '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}
+          </a>
+        </th>
+        <th>
+          {% set next_order = 'asc' if status_sort == 'count' and status_order == 'desc' else 'desc' %}
+          <a class="sort-link"
+            href="/?provider_sort={{ provider_sort }}&provider_order={{ provider_order }}&status_sort=count&status_order={{ next_order }}">
+            {{ t('col_count') }}{% if status_sort == 'count' %}<span class="sort-arrow">{{ '▲' if status_order == 'asc' else
+              '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}
+          </a>
+        </th>
+      </tr>
+      {% for row in db_stats.status_breakdown %}
+      <tr>
+        <td>{{ row.status }}</td>
+        <td>{{ row.count }}</td>
+      </tr>
+      {% endfor %}
+      </table>
+  </div>
 </div>
 {% endblock %}

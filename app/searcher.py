@@ -22,6 +22,36 @@ class Candidate:
     matched_line: str
 
 
+_PLACEHOLDER_PATTERNS = (
+    re.compile(r"^(?:x{6,}|y{6,}|z{6,}|0{6,}|1{6,}|a{6,}|b{6,})$", re.IGNORECASE),
+    re.compile(
+        r"(?:abcdefghijklmnopqrstuvwxyz|zyxwvutsrqponmlkjihgfedcba)", re.IGNORECASE
+    ),
+    re.compile(r"(?:0123456789|9876543210)"),
+    re.compile(
+        r"(?:placeholder|example|sample|dummy|changeme|replace|test)", re.IGNORECASE
+    ),
+)
+
+
+def is_placeholder_api_key(api_key: str) -> bool:
+    normalized = api_key.strip().lower()
+    if len(normalized) < 8:
+        return True
+    compact = re.sub(r"[^a-z0-9]", "", normalized)
+    if len(compact) < 8:
+        return True
+    if compact in {
+        "abcdefghijklmnopqrstuvwxyz",
+        "abcdefghijklmnopqrstuvwxyz1234567890",
+        "1234567890",
+    }:
+        return True
+    if len(set(compact)) <= 2:
+        return True
+    return any(pattern.search(normalized) for pattern in _PLACEHOLDER_PATTERNS)
+
+
 class GitHubSearcher:
     def __init__(self, github_config: GithubConfig) -> None:
         self.github_config = github_config
@@ -102,6 +132,8 @@ class GitHubSearcher:
                     matches = pattern.findall(matched_line)
                     for match in matches:
                         api_key = match if isinstance(match, str) else str(match)
+                        if is_placeholder_api_key(api_key):
+                            continue
                         emit(
                             Candidate(
                                 channel_name=channel.name,

@@ -1,22 +1,76 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="box">
-  <h2>Found Keys</h2>
-  <form method="get" action="/keys/found">
-    <input name="status" value="{{ status }}" placeholder="Filter by status (VALID/INVALID/PENDING...)" />
-    <button class="btn" type="submit">Filter</button>
+  <h2>{{ t('found_title') }}</h2>
+  <p class="muted">{{ t('found_desc') }}</p>
+  <form method="get" action="/keys/found" class="split">
+    <div style="flex:1;min-width:260px"><input name="status" value="{{ status }}"
+        placeholder="{{ t('filter_status') }} (VALID/INVALID/PENDING...)" /></div>
+    <button class="btn" type="submit">{{ t('filter_button') }}</button>
   </form>
 </div>
 <div class="box">
   <table>
-    <tr><th>ID</th><th>Channel</th><th>Provider</th><th>API Key</th><th>Repo</th><th>Path</th><th>Status</th></tr>
+    <tr>
+      <th>{% set next_order = 'asc' if sort_by == 'id' and sort_order == 'desc' else 'desc' %}<a class="sort-link"
+          href="/keys/found?page=1&status={{ status }}&sort_by=id&sort_order={{ next_order }}">{{ t('col_id') }}{% if
+          sort_by == 'id' %}<span class="sort-arrow">{{ '▲' if sort_order == 'asc' else '▼' }}</span>{% else %}<span
+            class="sort-arrow">↕</span>{% endif %}</a></th>
+      <th>{% set next_order = 'asc' if sort_by == 'channel_name' and sort_order == 'desc' else 'desc' %}<a class="sort-link"
+          href="/keys/found?page=1&status={{ status }}&sort_by=channel_name&sort_order={{ next_order }}">{{ t('col_channel')
+          }}{% if sort_by == 'channel_name' %}<span class="sort-arrow">{{ '▲' if sort_order == 'asc' else '▼' }}</span>{%
+          else %}<span class="sort-arrow">↕</span>{% endif %}</a></th>
+      <th>{% set next_order = 'asc' if sort_by == 'provider' and sort_order == 'desc' else 'desc' %}<a class="sort-link"
+          href="/keys/found?page=1&status={{ status }}&sort_by=provider&sort_order={{ next_order }}">{{ t('col_provider')
+          }}{% if sort_by == 'provider' %}<span class="sort-arrow">{{ '▲' if sort_order == 'asc' else '▼' }}</span>{% else
+          %}<span class="sort-arrow">↕</span>{% endif %}</a></th>
+      <th>{% set next_order = 'asc' if sort_by == 'api_key' and sort_order == 'desc' else 'desc' %}<a class="sort-link"
+          href="/keys/found?page=1&status={{ status }}&sort_by=api_key&sort_order={{ next_order }}">{{ t('col_api_key') }}{%
+          if sort_by == 'api_key' %}<span class="sort-arrow">{{ '▲' if sort_order == 'asc' else '▼' }}</span>{% else %}<span
+            class="sort-arrow">↕</span>{% endif %}</a></th>
+      <th>{% set next_order = 'asc' if sort_by == 'repository' and sort_order == 'desc' else 'desc' %}<a class="sort-link"
+          href="/keys/found?page=1&status={{ status }}&sort_by=repository&sort_order={{ next_order }}">{{ t('col_repo') }}{%
+          if sort_by == 'repository' %}<span class="sort-arrow">{{ '▲' if sort_order == 'asc' else '▼' }}</span>{% else
+          %}<span class="sort-arrow">↕</span>{% endif %}</a></th>
+      <th>{% set next_order = 'asc' if sort_by == 'file_path' and sort_order == 'desc' else 'desc' %}<a class="sort-link"
+          href="/keys/found?page=1&status={{ status }}&sort_by=file_path&sort_order={{ next_order }}">{{ t('col_path') }}{%
+          if sort_by == 'file_path' %}<span class="sort-arrow">{{ '▲' if sort_order == 'asc' else '▼' }}</span>{% else
+          %}<span class="sort-arrow">↕</span>{% endif %}</a></th>
+      <th>{% set next_order = 'asc' if sort_by == 'validation_status' and sort_order == 'desc' else 'desc' %}<a
+          class="sort-link"
+          href="/keys/found?page=1&status={{ status }}&sort_by=validation_status&sort_order={{ next_order }}">{{
+          t('col_status') }}{% if sort_by == 'validation_status' %}<span class="sort-arrow">{{ '▲' if sort_order == 'asc'
+            else '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}</a></th>
+      <th>{{ t('col_detail') }}</th>
+    </tr>
     {% for row in rows %}
     <tr>
-      <td>{{ row.id }}</td><td>{{ row.channel_name }}</td><td>{{ row.provider }}</td><td>{{ row.api_key }}</td>
-      <td>{{ row.repository }}</td><td><a href="{{ row.file_url }}" target="_blank">{{ row.file_path }}</a></td><td>{{ row.validation_status }}</td>
+      <td>{{ row.id }}</td>
+      <td>{{ row.channel_name }}</td>
+      <td>{{ row.provider }}</td>
+      <td><code>{{ row.api_key }}</code></td>
+      <td>{{ row.repository }}</td>
+      <td><a href="{{ row.file_url }}" target="_blank">{{ row.file_path }}</a></td>
+      <td><span
+          class="pill {% if row.validation_status == 'INVALID' %}danger{% elif row.validation_status == 'QUOTA_EXCEEDED' %}warning{% endif %}">{{
+          row.validation_status }}</span></td>
+      <td>
+        {% if row.validation_detail %}
+        <details>
+          <summary>{{ t('col_detail') }}</summary>
+          <div class="muted">{{ row.validation_detail }}</div>
+        </details>
+        {% else %}
+        <span class="muted">-</span>
+        {% endif %}
+      </td>
     </tr>
     {% endfor %}
   </table>
-  <p><a href="/keys/found?page={{ page + 1 }}&status={{ status }}">Next page</a></p>
+  <div class="split" style="justify-content:flex-end;margin-top:14px;">
+    <a class="btn btn-secondary"
+      href="/keys/found?page={{ page + 1 }}&status={{ status }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}">{{
+      t('next_page') }}</a>
+  </div>
 </div>
 {% endblock %}

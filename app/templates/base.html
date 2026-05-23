@@ -1,29 +1,166 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ lang }}">
 <head>
   <meta charset="UTF-8" />
-  <title>GitHub LLM Key Searcher</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ t('app_name') }}</title>
   <style>
-    body{font-family:Arial,Helvetica,sans-serif;margin:20px;background:#f5f7fb;color:#222}
-    a{color:#1565c0;text-decoration:none}
-    .nav a{margin-right:14px}
-    .box{background:#fff;padding:16px;border-radius:8px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
-    table{width:100%;border-collapse:collapse;font-size:13px}
-    th,td{border:1px solid #ddd;padding:6px;text-align:left}
-    textarea,input{width:100%;padding:8px;box-sizing:border-box}
-    .muted{color:#666;font-size:12px}
-    .btn{display:inline-block;padding:8px 12px;border:0;border-radius:6px;background:#1565c0;color:#fff;cursor:pointer}
+    :root{
+      --bg: #f4efe5;
+      --bg-accent: #dbe7ff;
+      --panel: rgba(255,255,255,.82);
+      --panel-strong: #ffffff;
+      --text: #18202b;
+      --muted: #617082;
+      --line: rgba(24,32,43,.12);
+      --accent: #1d4ed8;
+      --accent-strong: #0f172a;
+      --accent-soft: #e0ecff;
+      --good: #0f766e;
+      --warn: #b45309;
+      --bad: #b91c1c;
+      --shadow: 0 18px 45px rgba(15, 23, 42, .12);
+      --radius: 20px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      color:var(--text);
+      font-family:"Avenir Next","Segoe UI",sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(29,78,216,.16), transparent 28%),
+        radial-gradient(circle at top right, rgba(15,118,110,.12), transparent 24%),
+        linear-gradient(180deg, var(--bg) 0%, #f8fafc 100%);
+      min-height:100vh;
+    }
+    a{color:var(--accent);text-decoration:none}
+    a:hover{text-decoration:underline}
+    .shell{max-width:1380px;margin:0 auto;padding:24px;display:grid;gap:16px}
+    .nav{
+      display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;
+      padding:18px 22px;background:var(--panel);backdrop-filter:blur(12px);border:1px solid var(--line);
+      border-radius:var(--radius);box-shadow:var(--shadow)
+    }
+    .nav-links,.lang-links{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    .nav a{padding:10px 14px;border-radius:999px;background:var(--accent-soft);color:var(--accent-strong);font-weight:600}
+    .nav a:hover{background:#cfe0ff;text-decoration:none}
+    .nav a.active{background:var(--accent);color:#fff}
+    .brand{display:flex;flex-direction:column;gap:2px}
+    .brand strong{font-size:18px;letter-spacing:.2px}
+    .brand span{font-size:12px;color:var(--muted)}
+    .page{display:grid;gap:16px}
+    .grid{display:grid;gap:16px}
+    .grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .box{
+      background:var(--panel);
+      backdrop-filter:blur(12px);
+      padding:20px;
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow)
+    }
+    .box h2,.box h3{margin-top:0;margin-bottom:10px}
+    .box p{margin-top:0}
+    .stat{
+      padding:18px;border-radius:18px;background:linear-gradient(180deg, rgba(255,255,255,.88), rgba(240,246,255,.88));
+      border:1px solid var(--line)
+    }
+    .stat strong{display:block;font-size:28px;line-height:1.1;margin-top:8px}
+    table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;overflow:hidden}
+    th,td{padding:12px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+    th{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);background:rgba(255,255,255,.4)}
+    .sort-link{display:inline-flex;align-items:center;gap:6px;color:inherit;text-decoration:none}
+    .sort-link:hover{text-decoration:none}
+    .sort-arrow{font-size:11px;line-height:1}
+    tr:hover td{background:rgba(29,78,216,.04)}
+    textarea,input,select{
+      width:100%;padding:11px 12px;border-radius:14px;border:1px solid var(--line);background:#fff;color:var(--text);
+      box-sizing:border-box;outline:none;transition:border-color .15s ease, box-shadow .15s ease
+    }
+    textarea:focus,input:focus,select:focus{border-color:rgba(29,78,216,.5);box-shadow:0 0 0 4px rgba(29,78,216,.12)}
+    label{display:block;margin:10px 0 6px;font-size:13px;color:var(--muted);font-weight:600}
+    .muted{color:var(--muted);font-size:12px}
+    .btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:8px;
+      padding:11px 15px;border:0;border-radius:14px;background:linear-gradient(135deg, var(--accent), #2563eb);
+      color:#fff;cursor:pointer;font-weight:700;box-shadow:0 10px 22px rgba(37,99,235,.22)
+    }
+    .btn:hover{text-decoration:none;filter:brightness(1.03)}
+    .btn-secondary{background:#fff;color:var(--accent-strong);border:1px solid var(--line);box-shadow:none}
+    .split{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .pill{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;background:rgba(15,118,110,.1);color:var(--good);font-size:12px;font-weight:700}
+    .danger{background:rgba(185,28,28,.08);color:var(--bad)}
+    .warning{background:rgba(180,83,9,.08);color:var(--warn)}
+    .lang-label{font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+    @media (max-width: 900px){.grid-2,.grid-3{grid-template-columns:1fr}.nav{align-items:flex-start}.nav-links,.lang-links{justify-content:flex-start}}
   </style>
+  <script>
+    function formatUtcTimestamp(value) {
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) {
+        return value;
+      }
+
+      const parts = new Intl.DateTimeFormat(undefined, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hourCycle: 'h23',
+      }).formatToParts(parsed);
+
+      const pick = (type) => {
+        const found = parts.find((part) => part.type === type);
+        return found ? found.value : '';
+      };
+
+      return `${pick('year')}-${pick('month')}-${pick('day')} ${pick('hour')}:${pick('minute')}:${pick('second')}`;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('[data-utc-time]').forEach((element) => {
+        const rawValue = element.getAttribute('data-utc-time');
+        if (!rawValue) {
+          return;
+        }
+        const formatted = formatUtcTimestamp(rawValue);
+        element.textContent = formatted;
+        element.setAttribute('title', rawValue);
+      });
+    });
+  </script>
 </head>
-<body>
-  <div class="nav box">
-    <a href="/">Dashboard</a>
-    <a href="/keys/found">Found Keys</a>
-    <a href="/keys/validated">Validated Keys</a>
-    <a href="/config">Configuration</a>
-    <a href="/export/validated.csv">Export Validated CSV</a>
-    <a href="/logout">Logout</a>
-  </div>
-  {% block content %}{% endblock %}
+<body lang="{{ lang }}">
+  <div class="shell">
+    <div class="nav">
+      <div class="brand">
+        <strong>{{ t('app_name') }}</strong>
+        <span>{{ t('app_tagline') }}</span>
+      </div>
+      <div class="nav-links">
+        <a href="/">{{ t('nav_dashboard') }}</a>
+        <a href="/keys/found">{{ t('nav_found_keys') }}</a>
+        <a href="/keys/validated">{{ t('nav_validated_keys') }}</a>
+        <a href="/validation/logs">{{ t('nav_validation_logs') }}</a>
+        <a href="/config">{{ t('nav_configuration') }}</a>
+        <a href="/export/validated.csv">{{ t('nav_export_csv') }}</a>
+        <a href="/logout">{{ t('nav_logout') }}</a>
+      </div>
+      <div class="split" style="justify-content:flex-end;">
+        <span class="lang-label">{{ t('nav_language') }}</span>
+        <div class="lang-links">
+          <a href="/lang/zh?next={{ current_url | urlencode }}" {% if lang=='zh' %}class="active" {% endif %}>中文</a>
+          <a href="/lang/en?next={{ current_url | urlencode }}" {% if lang=='en' %}class="active" {% endif
+            %}>English</a>
+        </div>
+      </div>
+    </div>
+    <main class="page">
+      {% block content %}{% endblock %}
+    </main>
+    </div>
 </body>
 </html>

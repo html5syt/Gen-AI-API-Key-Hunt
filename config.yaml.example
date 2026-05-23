@@ -8,7 +8,7 @@ github:
   page_delay_seconds: 1.0
 
 scanner:
-  interval_seconds: 1800
+  interval_seconds: 28800
   search_workers: 4
   validate_workers: 8
 
@@ -16,18 +16,70 @@ validation:
   request_timeout_seconds: 12
   retries: 2
   initial_backoff_seconds: 1
+  revalidation_interval_seconds: 1800
+  pending_batch_size: 200
+  validated_sample_size: 10
+  ping_prompt: Reply with a short acknowledgement to confirm the model is reachable.
+  delete_invalid_keys: true
+  profiles:
+    - name: openai_compat
+      api_format: openai
+      base_url: https://api.openai.com
+      path: /v1/chat/completions
+      method: POST
+      headers:
+        Content-Type: application/json
+      model_candidates:
+        - gpt-4o-mini
+        - gpt-4.1-mini
+      api_key_transport: header
+      api_key_header: Authorization
+      api_key_prefix: 'Bearer '
+      api_key_query_param: key
+      enabled: true
+    - name: anthropic_compat
+      api_format: anthropic
+      base_url: https://api.anthropic.com
+      path: /v1/messages
+      method: POST
+      headers:
+        Content-Type: application/json
+        anthropic-version: '2023-06-01'
+      model_candidates:
+        - claude-3-5-haiku-latest
+        - claude-3-5-sonnet-latest
+      api_key_transport: header
+      api_key_header: x-api-key
+      api_key_prefix: ''
+      api_key_query_param: key
+      enabled: true
+    - name: google_compat
+      api_format: google
+      base_url: https://generativelanguage.googleapis.com
+      path: /v1beta/models/{model}:generateContent
+      method: POST
+      headers:
+        Content-Type: application/json
+      model_candidates:
+        - gemini-2.0-flash
+        - gemini-2.0-flash-lite
+      api_key_transport: query
+      api_key_header: Authorization
+      api_key_prefix: 'Bearer '
+      api_key_query_param: key
+      enabled: true
 
 web:
   host: 127.0.0.1
   port: 8080
   username: admin
-  password_hash: pbkdf2_sha256$260000$replace-with-random-salt$replace-with-derived-hash
+  password_hash: 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
   session_secret: please-change-session-secret
   page_size: 50
 
 api:
   enabled: true
-  token: please-change-api-token
+  token: 6e7d22f0ffa1dcaa8d51d31a6ecef09f4d0d312cec8c490b2215b56c7cbdf103
 
 channels:
   - name: openai
@@ -36,6 +88,7 @@ channels:
     extract_patterns:
       - '(sk-proj-[A-Za-z0-9\-_]{48,156})'
       - '(sk-[A-Za-z0-9]{48})'
+    validation_profile: openai_compat
     proxy: ""
     enabled: true
   - name: anthropic
@@ -44,5 +97,46 @@ channels:
     extract_patterns:
       - '(sk-ant-api03-[A-Za-z0-9\-_]{95})'
       - '(sk-ant-[A-Za-z0-9\-_]{44})'
+    validation_profile: anthropic_compat
+    proxy: ""
+    enabled: true
+  - name: google
+    provider: google
+    query: GOOGLE_API_KEY=AIza OR GEMINI_API_KEY=AIza
+    extract_patterns:
+      - '(AIza[0-9A-Za-z_-]{35})'
+    validation_profile: google_compat
+    proxy: ""
+    enabled: true
+  - name: openrouter
+    provider: openrouter
+    query: OPENROUTER_API_KEY=sk-or-v1-
+    extract_patterns:
+      - '(sk-or-v1-[a-f0-9]{64})'
+    validation_profile: openai_compat
+    proxy: ""
+    enabled: true
+  - name: deepseek
+    provider: deepseek
+    query: DEEPSEEK_API_KEY=sk-
+    extract_patterns:
+      - '(sk-[a-f0-9]{32})'
+    validation_profile: openai_compat
+    proxy: ""
+    enabled: true
+  - name: groq
+    provider: groq
+    query: GROQ_API_KEY=gsk_
+    extract_patterns:
+      - '(gsk_[A-Za-z0-9]{48})'
+    validation_profile: openai_compat
+    proxy: ""
+    enabled: true
+  - name: xai
+    provider: xai
+    query: XAI_API_KEY=xai-
+    extract_patterns:
+      - '(xai-[A-Za-z0-9]{64})'
+    validation_profile: openai_compat
     proxy: ""
     enabled: true

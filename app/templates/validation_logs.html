@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="box">
+    <h2>{{ t('logs_title') }}</h2>
+    <p class="muted">{{ t('logs_desc') }}</p>
+    <form method="get" action="/validation/logs" class="split">
+        <div style="flex:1;min-width:260px"><input name="status" value="{{ status }}"
+                placeholder="{{ t('filter_status') }} (VALID/INVALID/QUOTA_EXCEEDED/ERROR...)" /></div>
+        <button class="btn" type="submit">{{ t('filter_button') }}</button>
+    </form>
+</div>
+<div class="box">
+    <table>
+        <tr>
+            <th>{% set next_order = 'asc' if sort_by == 'id' and sort_order == 'desc' else 'desc' %}<a class="sort-link"
+                    href="/validation/logs?page=1&status={{ status }}&sort_by=id&sort_order={{ next_order }}">{{
+                    t('col_id') }}{% if sort_by == 'id' %}<span class="sort-arrow">{{ '▲' if sort_order == 'asc' else
+                        '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}</a></th>
+            <th>{% set next_order = 'asc' if sort_by == 'validated_at' and sort_order == 'desc' else 'desc' %}<a
+                    class="sort-link"
+                    href="/validation/logs?page=1&status={{ status }}&sort_by=validated_at&sort_order={{ next_order }}">{{
+                    t('col_time') }}{% if sort_by == 'validated_at' %}<span class="sort-arrow">{{ '▲' if sort_order ==
+                        'asc' else '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}</a></th>
+            <th>{% set next_order = 'asc' if sort_by == 'source' and sort_order == 'desc' else 'desc' %}<a
+                    class="sort-link"
+                    href="/validation/logs?page=1&status={{ status }}&sort_by=source&sort_order={{ next_order }}">{{
+                    t('col_source') }}{% if sort_by == 'source' %}<span class="sort-arrow">{{ '▲' if sort_order == 'asc'
+                        else '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}</a></th>
+            <th>{% set next_order = 'asc' if sort_by == 'channel_name' and sort_order == 'desc' else 'desc' %}<a
+                    class="sort-link"
+                    href="/validation/logs?page=1&status={{ status }}&sort_by=channel_name&sort_order={{ next_order }}">{{
+                    t('col_channel') }}{% if sort_by == 'channel_name' %}<span class="sort-arrow">{{ '▲' if sort_order
+                        == 'asc' else '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}</a></th>
+            <th>{% set next_order = 'asc' if sort_by == 'provider' and sort_order == 'desc' else 'desc' %}<a
+                    class="sort-link"
+                    href="/validation/logs?page=1&status={{ status }}&sort_by=provider&sort_order={{ next_order }}">{{
+                    t('col_provider') }}{% if sort_by == 'provider' %}<span class="sort-arrow">{{ '▲' if sort_order ==
+                        'asc' else '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}</a></th>
+            <th>{% set next_order = 'asc' if sort_by == 'api_key' and sort_order == 'desc' else 'desc' %}<a
+                    class="sort-link"
+                    href="/validation/logs?page=1&status={{ status }}&sort_by=api_key&sort_order={{ next_order }}">{{
+                    t('col_api_key') }}{% if sort_by == 'api_key' %}<span class="sort-arrow">{{ '▲' if sort_order ==
+                        'asc' else '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}</a></th>
+            <th>{% set next_order = 'asc' if sort_by == 'status' and sort_order == 'desc' else 'desc' %}<a
+                    class="sort-link"
+                    href="/validation/logs?page=1&status={{ status }}&sort_by=status&sort_order={{ next_order }}">{{
+                    t('col_status') }}{% if sort_by == 'status' %}<span class="sort-arrow">{{ '▲' if sort_order == 'asc'
+                        else '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}</a></th>
+            <th>{{ t('col_detail') }}</th>
+        </tr>
+        {% for row in rows %}
+        <tr>
+            <td>{{ row.id }}</td>
+            <td>
+                <time data-utc-time="{{ row.validated_at }}" datetime="{{ row.validated_at }}">{{ row.validated_at
+                    }}</time>
+            </td>
+            <td>{{ row.source }}</td>
+            <td>{{ row.channel_name or '-' }}</td>
+            <td>{{ row.provider }}</td>
+            <td><code>{{ row.api_key }}</code></td>
+            <td><span
+                    class="pill {% if row.status == 'INVALID' %}danger{% elif row.status == 'QUOTA_EXCEEDED' %}warning{% endif %}">{{
+                    row.status }}</span></td>
+            <td>
+                {% if row.detail %}
+                <details>
+                    <summary>{{ t('col_detail') }}</summary>
+                    <div class="muted">
+                        {% if row.repository %}<div>{{ t('col_repo') }}: {{ row.repository }}</div>{% endif %}
+                        {% if row.file_path %}<div>{{ t('col_path') }}: {{ row.file_path }}</div>{% endif %}
+                        {% if row.file_url %}<div><a href="{{ row.file_url }}" target="_blank">{{ row.file_url }}</a>
+                        </div>{% endif %}
+                        {% if row.matched_line %}<div>{{ row.matched_line }}</div>{% endif %}
+                        <div style="margin-top:8px;white-space:pre-wrap;">{{ row.detail }}</div>
+                    </div>
+                </details>
+                {% else %}
+                <span class="muted">-</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    <div class="split" style="justify-content:flex-end;margin-top:14px;">
+        <a class="btn btn-secondary"
+            href="/validation/logs?page={{ page + 1 }}&status={{ status }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}">{{
+            t('next_page') }}</a>
+    </div>
+</div>
+{% endblock %}

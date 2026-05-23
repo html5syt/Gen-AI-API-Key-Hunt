@@ -216,3 +216,4 @@ github_api_key_search_results.json
 # Internal chaos files
 *-SEC.md
 .github/instructions/*.md
+config.yaml

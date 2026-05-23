@@ -1,19 +1,69 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="box">
-  <h2>Validated Keys</h2>
-  <form method="get" action="/keys/validated">
-    <input name="provider" value="{{ provider }}" placeholder="Filter by provider" />
-    <button class="btn" type="submit">Filter</button>
+  <h2>{{ t('validated_title') }}</h2>
+  <p class="muted">{{ t('validated_desc') }}</p>
+  <form method="get" action="/keys/validated" class="split">
+    <div style="flex:1;min-width:260px"><input name="provider" value="{{ provider }}"
+        placeholder="{{ t('filter_provider') }}" />
+    </div>
+    <button class="btn" type="submit">{{ t('filter_button') }}</button>
   </form>
 </div>
 <div class="box">
   <table>
-    <tr><th>Provider</th><th>API Key</th><th>Status</th><th>Last Validated</th></tr>
+    <tr>
+      <th>{% set next_order = 'asc' if sort_by == 'provider' and sort_order == 'desc' else 'desc' %}<a class="sort-link"
+          href="/keys/validated?page=1&provider={{ provider }}&sort_by=provider&sort_order={{ next_order }}">{{
+          t('col_provider') }}{% if sort_by == 'provider' %}<span class="sort-arrow">{{ '▲' if sort_order == 'asc' else '▼'
+            }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}</a></th>
+      <th>{% set next_order = 'asc' if sort_by == 'api_key' and sort_order == 'desc' else 'desc' %}<a class="sort-link"
+          href="/keys/validated?page=1&provider={{ provider }}&sort_by=api_key&sort_order={{ next_order }}">{{
+          t('col_api_key') }}{% if sort_by == 'api_key' %}<span class="sort-arrow">{{ '▲' if sort_order == 'asc' else '▼'
+            }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}</a></th>
+      <th>{% set next_order = 'asc' if sort_by == 'status' and sort_order == 'desc' else 'desc' %}<a class="sort-link"
+          href="/keys/validated?page=1&provider={{ provider }}&sort_by=status&sort_order={{ next_order }}">{{
+          t('col_status') }}{% if sort_by == 'status' %}<span class="sort-arrow">{{ '▲' if sort_order == 'asc' else '▼'
+            }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}</a></th>
+      <th>{% set next_order = 'asc' if sort_by == 'last_validated_at' and sort_order == 'desc' else 'desc' %}<a
+          class="sort-link"
+          href="/keys/validated?page=1&provider={{ provider }}&sort_by=last_validated_at&sort_order={{ next_order }}">{{
+          t('col_last_validated') }}{% if sort_by == 'last_validated_at' %}<span class="sort-arrow">{{ '▲' if sort_order ==
+            'asc' else '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}</a></th>
+      <th>{{ t('col_detail') }}</th>
+    </tr>
     {% for row in rows %}
-    <tr><td>{{ row.provider }}</td><td>{{ row.api_key }}</td><td>{{ row.status }}</td><td>{{ row.last_validated_at }}</td></tr>
+    <tr>
+      <td>{{ row.provider }}</td>
+      <td><code>{{ row.api_key }}</code></td>
+      <td><span
+          class="pill {% if row.status == 'INVALID' %}danger{% elif row.status == 'QUOTA_EXCEEDED' %}warning{% endif %}">{{
+          row.status }}</span></td>
+      <td>
+        {% if row.last_validated_at %}
+        <time data-utc-time="{{ row.last_validated_at }}" datetime="{{ row.last_validated_at }}">{{ row.last_validated_at
+          }}</time>
+        {% else %}
+        <span class="muted">-</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if row.detail %}
+        <details>
+          <summary>{{ t('col_detail') }}</summary>
+          <div class="muted">{{ row.detail }}</div>
+        </details>
+        {% else %}
+        <span class="muted">-</span>
+        {% endif %}
+      </td>
+    </tr>
     {% endfor %}
   </table>
-  <p><a href="/keys/validated?page={{ page + 1 }}&provider={{ provider }}">Next page</a></p>
+  <div class="split" style="justify-content:flex-end;margin-top:14px;">
+    <a class="btn btn-secondary"
+      href="/keys/validated?page={{ page + 1 }}&provider={{ provider }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}">{{
+      t('next_page') }}</a>
+  </div>
 </div>
 {% endblock %}
