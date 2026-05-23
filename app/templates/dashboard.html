@@ -4,51 +4,67 @@
   <div class="box stat"><span class="pill">{{ t('nav_found_keys') }}</span><strong>{{ db_stats.total_found }}</strong>
     <div class="muted">{{ t('dashboard_found_total') }}</div>
   </div>
-  <div class="box stat"><span class="pill">{{ t('nav_validated_keys') }}</span><strong>{{ db_stats.total_validated
-      }}</strong>
+<div class="box stat"><span class="pill">{{ t('nav_validated_keys') }}</span><strong>{{ db_stats.total_validated
+        }}</strong>
     <div class="muted">{{ t('dashboard_validated_total') }}</div>
   </div>
-  <div class="box stat"><span class="pill">{{ t('nav_validation_logs') }}</span><strong>{{
-      db_stats.total_validation_logs }}</strong>
+<div class="box stat"><span class="pill">{{ t('nav_validation_logs') }}</span><strong>{{ db_stats.total_validation_logs
+        }}</strong>
     <div class="muted">{{ t('dashboard_log_count') }}</div>
   </div>
-  <div class="box stat"><span class="pill">{{ t('dashboard_queue_size') }}</span><strong>{{ runtime.queue_size
-      }}</strong>
+<div class="box stat"><span class="pill">{{ t('dashboard_queue_size') }}</span><strong>{{ runtime.queue_size }}</strong>
     <div class="muted">{{ t('dashboard_queue_size') }}</div>
   </div>
+<div class="box stat">
+    <span class="pill">{{ t('dashboard_title') }}</span>
+    <strong>{% if runtime.paused %}{{ t('dashboard_scan_paused') }}{% else %}{{ t('dashboard_live') }}{% endif
+        %}</strong>
+    <div class="muted">{% if runtime.paused %}{{ t('dashboard_scan_paused') }}{% else %}{{
+        t('dashboard_scheduler_active') }}{% endif %}</div>
+</div>
 </div>
 
 <div class="box">
-  <div class="split" style="justify-content:space-between;">
+<div class="split" style="justify-content:space-between;gap:12px;flex-wrap:wrap;">
     <div>
       <h2 style="margin-bottom:4px;">{{ t('dashboard_title') }}</h2>
       <div class="muted">{{ t('dashboard_subtitle') }}</div>
+    {% if runtime.paused %}<div class="pill" style="margin-top:10px;">{{ t('dashboard_scan_paused') }}</div>{% endif %}
     </div>
+    <div class="split" style="gap:10px;flex-wrap:wrap;">
     <form method="post" action="/scan/run-now">
-      <button class="btn" type="submit">{{ t('dashboard_run_now') }}</button>
+        <button class="btn" type="submit">{{ t('dashboard_run_now') }}</button>
+    </form>
+    <form method="post" action="/scan/pause">
+        <button class="btn" type="submit">{{ t('dashboard_resume_scan') if runtime.paused else t('dashboard_pause_scan')
+            }}</button>
+    </form>
+    <form method="post" action="/scan/force-rescan">
+        <button class="btn btn-secondary" type="submit">{{ t('dashboard_force_rescan') }}</button>
     </form>
     </div>
-    </div>
-    
-    <div class="grid grid-2">
+</div>
+</div>
+
+<div class="grid grid-2">
   <div class="box">
     <h3>{{ t('dashboard_found_by_provider') }}</h3>
     <table>
       <tr>
         <th>
           {% set next_order = 'asc' if provider_sort == 'provider' and provider_order == 'desc' else 'desc' %}
-          <a class="sort-link"
+        <a class="sort-link"
             href="/?provider_sort=provider&provider_order={{ next_order }}&status_sort={{ status_sort }}&status_order={{ status_order }}">
             {{ t('col_provider') }}{% if provider_sort == 'provider' %}<span class="sort-arrow">{{ '▲' if provider_order ==
-              'asc' else '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}
+                'asc' else '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}
           </a>
         </th>
         <th>
           {% set next_order = 'asc' if provider_sort == 'count' and provider_order == 'desc' else 'desc' %}
-          <a class="sort-link"
+        <a class="sort-link"
             href="/?provider_sort=count&provider_order={{ next_order }}&status_sort={{ status_sort }}&status_order={{ status_order }}">
-            {{ t('col_count') }}{% if provider_sort == 'count' %}<span class="sort-arrow">{{ '▲' if provider_order == 'asc'
-              else '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}
+            {{ t('col_count') }}{% if provider_sort == 'count' %}<span class="sort-arrow">{{ '▲' if provider_order == 'asc' else
+                '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}
           </a>
         </th>
       </tr>
@@ -58,26 +74,26 @@
         <td>{{ row.count }}</td>
       </tr>
       {% endfor %}
-      </table>
-      </div>
-      <div class="box">
+    </table>
+    </div>
+    <div class="box">
     <h3>{{ t('dashboard_validation_breakdown') }}</h3>
     <table>
       <tr>
         <th>
           {% set next_order = 'asc' if status_sort == 'status' and status_order == 'desc' else 'desc' %}
-          <a class="sort-link"
+        <a class="sort-link"
             href="/?provider_sort={{ provider_sort }}&provider_order={{ provider_order }}&status_sort=status&status_order={{ next_order }}">
-            {{ t('col_status') }}{% if status_sort == 'status' %}<span class="sort-arrow">{{ '▲' if status_order == 'asc'
-              else '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}
+            {{ t('col_status') }}{% if status_sort == 'status' %}<span class="sort-arrow">{{ '▲' if status_order == 'asc' else
+                '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}
           </a>
         </th>
         <th>
           {% set next_order = 'asc' if status_sort == 'count' and status_order == 'desc' else 'desc' %}
-          <a class="sort-link"
+        <a class="sort-link"
             href="/?provider_sort={{ provider_sort }}&provider_order={{ provider_order }}&status_sort=count&status_order={{ next_order }}">
-            {{ t('col_count') }}{% if status_sort == 'count' %}<span class="sort-arrow">{{ '▲' if status_order == 'asc' else
-              '▼' }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}
+            {{ t('col_count') }}{% if status_sort == 'count' %}<span class="sort-arrow">{{ '▲' if status_order == 'asc' else '▼'
+                }}</span>{% else %}<span class="sort-arrow">↕</span>{% endif %}
           </a>
         </th>
       </tr>
@@ -87,7 +103,7 @@
         <td>{{ row.count }}</td>
       </tr>
       {% endfor %}
-      </table>
+    </table>
   </div>
 </div>
 {% endblock %}

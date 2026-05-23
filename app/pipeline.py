@@ -37,6 +37,7 @@ class RuntimeState:
     total_validation_runs: int = 0
     total_validation_sweeps: int = 0
     queue_size: int = 0
+    paused: bool = False
 
 
 class ScanPipeline:
@@ -45,6 +46,9 @@ class ScanPipeline:
         self.database = database
         self._stop_event = threading.Event()
         self._scan_event = threading.Event()
+        self._scan_cancel_event = threading.Event()
+        self._force_rescan_event = threading.Event()
+        self._pause_event = threading.Event()
         self._queue: queue.Queue[ValidationTask] = queue.Queue(maxsize=50000)
         self._scheduler_thread: threading.Thread | None = None
         self._sweeper_thread: threading.Thread | None = None
@@ -66,6 +70,8 @@ class ScanPipeline:
     def stop(self) -> None:
         self._stop_event.set()
         self._scan_event.set()
+        self._scan_cancel_event.set()
+        self._force_rescan_event.clear()
         if self._scheduler_thread is not None:
             self._scheduler_thread.join(timeout=5)
         if self._sweeper_thread is not None:
@@ -74,6 +80,32 @@ class ScanPipeline:
             thread.join(timeout=2)
 
     def trigger_scan_now(self) -> None:
+        self._scan_event.set()
+
+    def pause_scanning(self) -> None:
+        self._pause_event.set()
+        with self._state_lock:
+            self._state.paused = True
+
+    def resume_scanning(self) -> None:
+        self._pause_event.clear()
+        with self._state_lock:
+            self._state.paused = False
+        self._scan_event.set()
+
+    def toggle_pause(self) -> bool:
+        if self._pause_event.is_set():
+            self.resume_scanning()
+        else:
+            self.pause_scanning()
+        return self._pause_event.is_set()
+
+    def force_rescan_all(self) -> None:
+        self._pause_event.clear()
+        with self._state_lock:
+            self._state.paused = False
+        self._scan_cancel_event.set()
+        self._force_rescan_event.set()
         self._scan_event.set()
 
     def runtime_stats(self) -> dict[str, Any]:
@@ -88,6 +120,7 @@ class ScanPipeline:
                 "total_validation_runs": self._state.total_validation_runs,
                 "total_validation_sweeps": self._state.total_validation_sweeps,
                 "queue_size": self._queue.qsize(),
+                "paused": self._pause_event.is_set(),
             }
 
     def _start_validator_workers(self, cfg: AppConfig) -> None:
@@ -98,8 +131,21 @@ class ScanPipeline:
 
     def _scheduler_loop(self) -> None:
         while not self._stop_event.is_set():
+            if self._pause_event.is_set():
+                if self._scan_event.is_set():
+                    self._scan_event.clear()
+                    cfg = self.config_manager.get()
+                    self._run_scan_cycle(cfg)
+                    continue
+                self._scan_event.wait(timeout=1)
+                self._scan_event.clear()
+                continue
             cfg = self.config_manager.get()
             self._run_scan_cycle(cfg)
+            if self._force_rescan_event.is_set():
+                self._force_rescan_event.clear()
+                self._scan_cancel_event.clear()
+                continue
             self._scan_event.wait(timeout=max(5, cfg.scanner.interval_seconds))
             self._scan_event.clear()
 
@@ -182,6 +228,11 @@ class ScanPipeline:
             self._state.last_cycle_finished_at = time.time()
             self._state.queue_size = self._queue.qsize()
 
+        if self._force_rescan_event.is_set():
+            self._force_rescan_event.clear()
+            self._scan_cancel_event.clear()
+            self._run_scan_cycle(cfg)
+
     def _scan_single_channel(self, searcher: GitHubSearcher, channel: ChannelConfig) -> int:
         proxy = channel.proxy
 
@@ -213,7 +264,13 @@ class ScanPipeline:
                     self._state.total_new_found += 1
                     self._state.queue_size = self._queue.qsize()
 
-        return searcher.run_channel(channel, emit=emit, should_stop=self._stop_event.is_set)
+        return searcher.run_channel(
+            channel,
+            emit=emit,
+            should_stop=lambda: (
+                self._stop_event.is_set() or self._scan_cancel_event.is_set()
+            ),
+        )
 
     def _validator_worker(self, _worker_idx: int) -> None:
         while not self._stop_event.is_set():

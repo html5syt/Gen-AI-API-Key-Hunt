@@ -17,7 +17,8 @@ A GitHub LLM key discovery and validation service with concurrent search + valid
 - **Random validation sweeps** for pending and sampled validated keys.
 - **Placeholder key filtering** before insert/validation.
 - **Per-channel proxy** configuration.
-- **Custom channels** with custom search expressions and regex extraction rules.
+- **Custom channels** with custom search expressions, regex extraction rules, endpoint settings, request headers, and model lists.
+- **Dashboard controls** to pause scanning or force an immediate full rescan.
 - **Docker image** published to GitHub Container Registry.
 
 ## Project Structure

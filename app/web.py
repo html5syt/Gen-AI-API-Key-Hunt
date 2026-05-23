@@ -17,7 +17,6 @@ from app.config import (
     ChannelConfig,
     ConfigManager,
     normalize_secret_hash,
-    ValidationApiProfile,
     verify_password,
     verify_secret,
 )
@@ -51,6 +50,12 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "dashboard_queue_size": "Validation jobs waiting",
         "dashboard_log_count": "Validation log entries",
         "dashboard_run_now": "Run Scan Now",
+        "dashboard_pause_scan": "Pause Scanning",
+        "dashboard_resume_scan": "Resume Scanning",
+        "dashboard_force_rescan": "Force Stop and Rescan All Keys",
+        "dashboard_scan_paused": "Scanning is paused.",
+        "dashboard_live": "Live",
+        "dashboard_scheduler_active": "Scheduler active",
         "dashboard_found_by_provider": "Found by Provider",
         "dashboard_validation_breakdown": "Validation Status Breakdown",
         "found_title": "Found Keys",
@@ -77,13 +82,12 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "col_source": "Source",
         "col_mode": "Mode",
         "config_title": "Configuration",
-        "config_desc": "Edit channels and validation profiles with the GUI tables below. Advanced JSON remains available if you need it.",
+        "config_desc": "Edit channels, endpoint settings, and validation behavior with the GUI table below.",
         "section_github": "GitHub",
         "section_scanner": "Scanner",
         "section_validation": "Validation",
         "section_web": "Web",
         "section_api": "API",
-        "section_profiles": "Validation Profiles",
         "section_channels": "Channels",
         "section_advanced": "Advanced JSON",
         "config_save": "Save configuration",
@@ -113,10 +117,9 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "config_enable_api": "Enable API",
         "config_api_token": "New API token",  # nosec B105
         "config_secret_hint": "Credentials are stored as SHA-256 hashes after saving.",
-        "config_profiles_hint": "Each profile maps to a compatible API format and declares the request details.",
-        "config_channels_hint": "Each channel links to a validation profile by name.",
+        "config_profiles_hint": "Each channel owns its own API endpoint, headers, and request format.",
+        "config_channels_hint": "Use the table below to define how each channel should be validated.",
         "config_json_hint": "Use JSON only if you prefer manual editing. GUI values take precedence.",
-        "config_json_profiles": "Use JSON for validation profiles",
         "config_json_channels": "Use JSON for channels",
         "config_name": "Name",
         "config_format": "Format",
@@ -133,11 +136,8 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "config_provider": "Provider",
         "config_query": "Query",
         "config_extract_patterns": "Extract patterns",
-        "config_validation_profile": "Validation profile",
         "config_proxy": "Proxy",
-        "config_validation_profiles_json": "Validation Profiles JSON",
         "config_channels_json": "Channels JSON",
-        "config_new_profile": "new profile",
         "config_new_channel": "new channel",
         "login_language_zh": "中文",
         "login_language_en": "English",
@@ -176,6 +176,12 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "dashboard_queue_size": "等待处理的验证任务",
         "dashboard_log_count": "验证日志条数",
         "dashboard_run_now": "立即执行扫描",
+        "dashboard_pause_scan": "暂停扫描",
+        "dashboard_resume_scan": "继续扫描",
+        "dashboard_force_rescan": "强制停止并重新检测全部 Key",
+        "dashboard_scan_paused": "扫描已暂停。",
+        "dashboard_live": "运行中",
+        "dashboard_scheduler_active": "调度器运行中",
         "dashboard_found_by_provider": "按提供商统计发现量",
         "dashboard_validation_breakdown": "验证状态分布",
         "found_title": "发现的 Key",
@@ -202,13 +208,12 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "col_source": "来源",
         "col_mode": "模式",
         "config_title": "配置",
-        "config_desc": "通过下方的 GUI 表格编辑渠道和验证配置。如果你更喜欢手工编辑，仍然可以使用高级 JSON。",
+        "config_desc": "通过下方的 GUI 表格编辑渠道、端点和验证行为。",
         "section_github": "GitHub",
         "section_scanner": "扫描器",
         "section_validation": "验证",
         "section_web": "Web",
         "section_api": "API",
-        "section_profiles": "验证配置",
         "section_channels": "渠道",
         "section_advanced": "高级 JSON",
         "config_save": "保存配置",
@@ -238,10 +243,9 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "config_enable_api": "启用 API",
         "config_api_token": "新的 API 凭证",  # nosec B105
         "config_secret_hint": "凭证保存后会以 SHA-256 哈希形式存储。",
-        "config_profiles_hint": "每个配置都对应一种兼容的 API 格式，并声明请求细节。",
-        "config_channels_hint": "每个渠道通过名称关联到一个验证配置。",
+        "config_profiles_hint": "每个渠道都拥有自己的 API 端点、请求头和请求格式。",
+        "config_channels_hint": "使用下方表格定义每个渠道的验证方式。",
         "config_json_hint": "只有在你想手工编辑时才使用 JSON，界面表格会优先生效。",
-        "config_json_profiles": "使用 JSON 编辑验证配置",
         "config_json_channels": "使用 JSON 编辑渠道",
         "config_name": "名称",
         "config_format": "格式",
@@ -258,11 +262,8 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "config_provider": "提供商",
         "config_query": "查询语句",
         "config_extract_patterns": "提取规则",
-        "config_validation_profile": "验证配置",
         "config_proxy": "代理",
-        "config_validation_profiles_json": "验证配置 JSON",
         "config_channels_json": "渠道 JSON",
-        "config_new_profile": "新配置",
         "config_new_channel": "新渠道",
         "login_language_zh": "中文",
         "login_language_en": "English",
@@ -484,6 +485,16 @@ def create_app(config_path: str, db_path: str) -> FastAPI:
             status_order=status_order,
         )
 
+    @app.post("/scan/pause", dependencies=[Depends(require_web_auth)])
+    async def pause_scan() -> RedirectResponse:
+        pipeline.toggle_pause()
+        return RedirectResponse(url="/", status_code=302)
+
+    @app.post("/scan/force-rescan", dependencies=[Depends(require_web_auth)])
+    async def force_rescan() -> RedirectResponse:
+        pipeline.force_rescan_all()
+        return RedirectResponse(url="/", status_code=302)
+
     @app.get(
         "/keys/found",
         response_class=HTMLResponse,
@@ -636,9 +647,8 @@ def create_app(config_path: str, db_path: str) -> FastAPI:
     )
     async def config_page(request: Request) -> HTMLResponse:
         cfg = config_manager.get()
-        channels_json = json.dumps([asdict(c) for c in cfg.channels], indent=2, ensure_ascii=False)
-        validation_profiles_json = json.dumps(
-            [asdict(p) for p in cfg.validation_profiles], indent=2, ensure_ascii=False
+        channels_json = json.dumps(
+            [asdict(c) for c in cfg.channels], indent=2, ensure_ascii=False
         )
         return _render(
             templates,
@@ -646,7 +656,6 @@ def create_app(config_path: str, db_path: str) -> FastAPI:
             "config.html",
             cfg=cfg,
             channels_json=channels_json,
-            validation_profiles_json=validation_profiles_json,
             message="",
         )
 
@@ -720,212 +729,89 @@ def create_app(config_path: str, db_path: str) -> FastAPI:
 
             return sorted(indices, key=_sort_key)
 
-        use_json_profiles = (
-            _read_form_field(form_data, "use_json_profiles", "off") == "on"
-        )
-        if not use_json_profiles:
-            profile_indices = _collect_indices("profile_name_")
-            validation_profiles: list[ValidationApiProfile] = []
-            for idx in profile_indices:
-                name = _read_form_field(form_data, f"profile_name_{idx}").strip()
-                api_format = (
-                    _read_form_field(form_data, f"profile_format_{idx}").strip().lower()
-                )
-                base_url = _read_form_field(
-                    form_data, f"profile_base_url_{idx}"
-                ).strip()
-                path = _read_form_field(form_data, f"profile_path_{idx}").strip()
-                if not (name and api_format and base_url and path):
-                    continue
-                headers_text = _read_form_field(
-                    form_data, f"profile_headers_{idx}", "{}"
-                )
-                try:
-                    headers_raw = (
-                        json.loads(headers_text) if headers_text.strip() else {}
-                    )
-                except json.JSONDecodeError:
-                    headers_raw = {}
-                headers = (
-                    {str(key): str(value) for key, value in headers_raw.items()}
-                    if isinstance(headers_raw, dict)
-                    else {}
-                )
-                models_text = _read_form_field(form_data, f"profile_models_{idx}")
-                model_candidates = [
-                    line.strip() for line in models_text.splitlines() if line.strip()
-                ]
-                validation_profiles.append(
-                    ValidationApiProfile(
-                        name=name,
-                        api_format=api_format,
-                        base_url=base_url,
-                        path=path,
-                        method=_read_form_field(
-                            form_data, f"profile_method_{idx}", "POST"
-                        )
-                        .strip()
-                        .upper()
-                        or "POST",
-                        headers=headers,
-                        model_candidates=model_candidates,
-                        api_key_transport=_read_form_field(
-                            form_data, f"profile_key_transport_{idx}", "header"
-                        )
-                        .strip()
-                        .lower()
-                        or "header",
-                        api_key_header=_read_form_field(
-                            form_data, f"profile_key_header_{idx}", "Authorization"
-                        ).strip()
-                        or "Authorization",
-                        api_key_prefix=_read_form_field(
-                            form_data, f"profile_key_prefix_{idx}", "Bearer "
-                        ),
-                        api_key_query_param=_read_form_field(
-                            form_data, f"profile_key_query_{idx}", "key"
-                        ).strip()
-                        or "key",
-                        enabled=_read_form_field(
-                            form_data, f"profile_enabled_{idx}", "off"
-                        )
-                        == "on",
-                    )
-                )
-            cfg.validation_profiles = validation_profiles
-        else:
-            validation_profiles_text = _read_form_field(
-                form_data, "validation_profiles_json", "[]"
+        channel_indices = _collect_indices("channel_name_")
+        channels: list[ChannelConfig] = []
+        for idx in channel_indices:
+            name = _read_form_field(form_data, f"channel_name_{idx}").strip()
+            provider = (
+                _read_form_field(form_data, f"channel_provider_{idx}").strip().lower()
             )
-            validation_profiles_loaded = json.loads(validation_profiles_text)
-            parsed_profiles: list[ValidationApiProfile] = []
-            if isinstance(validation_profiles_loaded, list):
-                for item in validation_profiles_loaded:
-                    if not isinstance(item, dict):
-                        continue
-                    name = str(item.get("name", "")).strip()
-                    api_format = str(item.get("api_format", "")).strip().lower()
-                    base_url = str(item.get("base_url", "")).strip()
-                    path = str(item.get("path", "")).strip()
-                    if not (name and api_format and base_url and path):
-                        continue
-                    headers_raw = item.get("headers", {})
-                    headers = (
-                        {str(key): str(value) for key, value in headers_raw.items()}
-                        if isinstance(headers_raw, dict)
-                        else {}
+            query = _read_form_field(form_data, f"channel_query_{idx}").strip()
+            patterns_text = _read_form_field(form_data, f"channel_patterns_{idx}")
+            extract_patterns = [
+                line.strip() for line in patterns_text.splitlines() if line.strip()
+            ]
+            if not (name and provider and query and extract_patterns):
+                continue
+            headers_text = _read_form_field(form_data, f"channel_headers_{idx}", "{}")
+            try:
+                headers_raw = json.loads(headers_text) if headers_text.strip() else {}
+            except json.JSONDecodeError:
+                headers_raw = {}
+            headers = (
+                {str(key): str(value) for key, value in headers_raw.items()}
+                if isinstance(headers_raw, dict)
+                else {}
+            )
+            models_text = _read_form_field(form_data, f"channel_models_{idx}")
+            model_candidates = [
+                line.strip() for line in models_text.splitlines() if line.strip()
+            ]
+            channels.append(
+                ChannelConfig(
+                    name=name,
+                    provider=provider,
+                    query=query,
+                    extract_patterns=extract_patterns,
+                    api_format=_read_form_field(
+                        form_data, f"channel_format_{idx}", "openai"
                     )
-                    model_candidates_raw = item.get("model_candidates", [])
-                    model_candidates = (
-                        [str(x).strip() for x in model_candidates_raw if str(x).strip()]
-                        if isinstance(model_candidates_raw, list)
-                        else []
-                    )
-                    parsed_profiles.append(
-                        ValidationApiProfile(
-                            name=name,
-                            api_format=api_format,
-                            base_url=base_url,
-                            path=path,
-                            method=str(item.get("method", "POST")).strip().upper()
-                            or "POST",
-                            headers=headers,
-                            model_candidates=model_candidates,
-                            api_key_transport=str(
-                                item.get("api_key_transport", "header")
-                            )
-                            .strip()
-                            .lower()
-                            or "header",
-                            api_key_header=str(
-                                item.get("api_key_header", "Authorization")
-                            ),
-                            api_key_prefix=str(item.get("api_key_prefix", "Bearer ")),
-                            api_key_query_param=str(
-                                item.get("api_key_query_param", "key")
-                            ),
-                            enabled=bool(item.get("enabled", True)),
-                        )
-                    )
-            if parsed_profiles:
-                cfg.validation_profiles = parsed_profiles
-
-        use_json_channels = (
-            _read_form_field(form_data, "use_json_channels", "off") == "on"
-        )
-        if not use_json_channels:
-            channel_indices = _collect_indices("channel_name_")
-            channels: list[ChannelConfig] = []
-            for idx in channel_indices:
-                name = _read_form_field(form_data, f"channel_name_{idx}").strip()
-                provider = (
-                    _read_form_field(form_data, f"channel_provider_{idx}")
                     .strip()
                     .lower()
-                )
-                query = _read_form_field(form_data, f"channel_query_{idx}").strip()
-                patterns_text = _read_form_field(form_data, f"channel_patterns_{idx}")
-                extract_patterns = [
-                    line.strip() for line in patterns_text.splitlines() if line.strip()
-                ]
-                if not (name and provider and query and extract_patterns):
-                    continue
-                channels.append(
-                    ChannelConfig(
-                        name=name,
-                        provider=provider,
-                        query=query,
-                        extract_patterns=extract_patterns,
-                        validation_profile=_read_form_field(
-                            form_data, f"channel_profile_{idx}", "openai_compat"
-                        ).strip()
-                        or "openai_compat",
-                        proxy=_read_form_field(
-                            form_data, f"channel_proxy_{idx}", ""
-                        ).strip(),
-                        enabled=_read_form_field(
-                            form_data, f"channel_enabled_{idx}", "off"
-                        )
-                        == "on",
+                    or "openai",
+                    base_url=_read_form_field(
+                        form_data, f"channel_base_url_{idx}", "https://api.openai.com"
+                    ).strip()
+                    or "https://api.openai.com",
+                    path=_read_form_field(
+                        form_data, f"channel_path_{idx}", "/v1/chat/completions"
+                    ).strip()
+                    or "/v1/chat/completions",
+                    method=_read_form_field(form_data, f"channel_method_{idx}", "POST")
+                    .strip()
+                    .upper()
+                    or "POST",
+                    headers=headers,
+                    model_candidates=model_candidates,
+                    api_key_transport=_read_form_field(
+                        form_data, f"channel_key_transport_{idx}", "header"
                     )
+                    .strip()
+                    .lower()
+                    or "header",
+                    api_key_header=_read_form_field(
+                        form_data, f"channel_key_header_{idx}", "Authorization"
+                    ).strip()
+                    or "Authorization",
+                    api_key_prefix=_read_form_field(
+                        form_data, f"channel_key_prefix_{idx}", "Bearer "
+                    ),
+                    api_key_query_param=_read_form_field(
+                        form_data, f"channel_key_query_{idx}", "key"
+                    ).strip()
+                    or "key",
+                    proxy=_read_form_field(
+                        form_data, f"channel_proxy_{idx}", ""
+                    ).strip(),
+                    enabled=_read_form_field(form_data, f"channel_enabled_{idx}", "off")
+                    == "on",
                 )
-            cfg.channels = channels
-        else:
-            channels_text = _read_form_field(form_data, "channels_json", "[]")
-            channels_loaded = json.loads(channels_text)
-            parsed_channels: list[ChannelConfig] = []
-            if isinstance(channels_loaded, list):
-                for item in channels_loaded:
-                    if not isinstance(item, dict):
-                        continue
-                    parsed_channels.append(
-                        ChannelConfig(
-                            name=str(item.get("name", "")).strip(),
-                            provider=str(item.get("provider", "")).strip().lower(),
-                            query=str(item.get("query", "")).strip(),
-                            extract_patterns=[
-                                str(x)
-                                for x in item.get("extract_patterns", [])
-                                if str(x).strip()
-                            ],
-                            validation_profile=str(
-                                item.get("validation_profile", "openai_compat")
-                            ).strip()
-                            or "openai_compat",
-                            proxy=str(item.get("proxy", "")),
-                            enabled=bool(item.get("enabled", True)),
-                        )
-                    )
-            cfg.channels = [
-                c
-                for c in parsed_channels
-                if c.name and c.provider and c.query and c.extract_patterns
-            ]
+            )
+        cfg.channels = channels
 
         config_manager.update(cfg)
-        channels_json = json.dumps([asdict(c) for c in cfg.channels], indent=2, ensure_ascii=False)
-        validation_profiles_json = json.dumps(
-            [asdict(p) for p in cfg.validation_profiles], indent=2, ensure_ascii=False
+        channels_json = json.dumps(
+            [asdict(c) for c in cfg.channels], indent=2, ensure_ascii=False
         )
         return _render(
             templates,
@@ -933,7 +819,6 @@ def create_app(config_path: str, db_path: str) -> FastAPI:
             "config.html",
             cfg=cfg,
             channels_json=channels_json,
-            validation_profiles_json=validation_profiles_json,
             message=_translate(_request_language(request), "config_saved"),
         )
 

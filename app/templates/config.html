@@ -9,16 +9,13 @@
 <form method="post" action="/config">
 <div class="grid grid-2">
     <div class="box">
-        <h3>{{ t('section_github') }}</h3>
-        <label>{{ t('config_tokens') }}</label><input name="github_tokens"
-            value="{{ cfg.github.tokens | join(',') }}" />
-        <label>{{ t('config_user_agent') }}</label><input name="github_user_agent"
-            value="{{ cfg.github.user_agent }}" />
-        <label>{{ t('config_timeout') }}</label><input name="github_timeout"
-            value="{{ cfg.github.request_timeout_seconds }}" />
-        <label>{{ t('config_max_pages') }}</label><input name="github_max_pages" value="{{ cfg.github.max_pages }}" />
-        <label>{{ t('config_page_delay') }}</label><input name="github_page_delay"
-            value="{{ cfg.github.page_delay_seconds }}" />
+    <h3>{{ t('section_github') }}</h3>
+    <label>{{ t('config_tokens') }}</label><input name="github_tokens" value="{{ cfg.github.tokens | join(',') }}" />
+    <label>{{ t('config_user_agent') }}</label><input name="github_user_agent" value="{{ cfg.github.user_agent }}" />
+    <label>{{ t('config_timeout') }}</label><input name="github_timeout" value="{{ cfg.github.request_timeout_seconds }}" />
+    <label>{{ t('config_max_pages') }}</label><input name="github_max_pages" value="{{ cfg.github.max_pages }}" />
+    <label>{{ t('config_page_delay') }}</label><input name="github_page_delay"
+        value="{{ cfg.github.page_delay_seconds }}" />
 
     <h3>{{ t('section_scanner') }}</h3>
     <label>{{ t('config_scan_interval') }}</label><input name="scanner_interval"
@@ -46,156 +43,109 @@
     </div>
 
     <div class="box">
-        <h3>{{ t('section_web') }}</h3>
-        <label>{{ t('config_host') }}</label><input name="web_host" value="{{ cfg.web.host }}" />
-        <label>{{ t('config_port') }}</label><input name="web_port" value="{{ cfg.web.port }}" />
-        <label>{{ t('config_username') }}</label><input name="web_username" value="{{ cfg.web.username }}" />
-        <label>{{ t('config_password') }}</label><input type="password" name="web_password" value=""
-            placeholder="{{ t('config_password') }}" />
-        <label>{{ t('config_session_secret') }}</label><input name="web_session_secret"
-            value="{{ cfg.web.session_secret }}" />
-        <label>{{ t('config_page_size') }}</label><input name="web_page_size" value="{{ cfg.web.page_size }}" />
+    <h3>{{ t('section_web') }}</h3>
+    <label>{{ t('config_host') }}</label><input name="web_host" value="{{ cfg.web.host }}" />
+    <label>{{ t('config_port') }}</label><input name="web_port" value="{{ cfg.web.port }}" />
+    <label>{{ t('config_username') }}</label><input name="web_username" value="{{ cfg.web.username }}" />
+    <label>{{ t('config_password') }}</label><input type="password" name="web_password" value=""
+        placeholder="{{ t('config_password') }}" />
+    <label>{{ t('config_session_secret') }}</label><input name="web_session_secret" value="{{ cfg.web.session_secret }}" />
+    <label>{{ t('config_page_size') }}</label><input name="web_page_size" value="{{ cfg.web.page_size }}" />
     
-        <h3>{{ t('section_api') }}</h3>
-        <label><input type="checkbox" name="api_enabled" {% if cfg.api.enabled %}checked{% endif %} /> {{
-            t('config_enable_api') }}</label>
-        <label>{{ t('config_api_token') }}</label><input name="api_token" value=""
-            placeholder="{{ t('config_api_token') }}" />
-        <p class="muted">{{ t('config_secret_hint') }}</p>
+    <h3>{{ t('section_api') }}</h3>
+    <label><input type="checkbox" name="api_enabled" {% if cfg.api.enabled %}checked{% endif %} /> {{ t('config_enable_api')
+        }}</label>
+    <label>{{ t('config_api_token') }}</label><input name="api_token" value="" placeholder="{{ t('config_api_token') }}" />
+    <p class="muted">{{ t('config_secret_hint') }}</p>
     </div>
-    </div>
-    
-    <div class="box">
-        <h3>{{ t('section_profiles') }}</h3>
-        <p class="muted">{{ t('config_profiles_hint') }}</p>
-        <table>
-            <tr>
-                <th>{{ t('config_name') }}</th>
-                <th>{{ t('config_format') }}</th>
-                <th>{{ t('config_base_url') }}</th>
-                <th>{{ t('config_path') }}</th>
-                <th>{{ t('config_method') }}</th>
-                <th>{{ t('config_headers') }}</th>
-                <th>{{ t('config_models') }}</th>
-                <th>{{ t('config_key_transport') }}</th>
-                <th>{{ t('config_header') }}</th>
-                <th>{{ t('config_prefix') }}</th>
-                <th>{{ t('config_query_param') }}</th>
-                <th>{{ t('config_enabled') }}</th>
-            </tr>
-            {% for profile in cfg.validation_profiles %}
-            <tr>
-                <td><input name="profile_name_{{ loop.index0 }}" value="{{ profile.name }}" /></td>
-                <td>
-                    <select name="profile_format_{{ loop.index0 }}">
-                        <option value="openai" {% if profile.api_format=='openai' %}selected{% endif %}>openai</option>
-                        <option value="anthropic" {% if profile.api_format=='anthropic' %}selected{% endif %}>anthropic
-                        </option>
-                        <option value="google" {% if profile.api_format=='google' %}selected{% endif %}>google</option>
-                    </select>
-                </td>
-                <td><input name="profile_base_url_{{ loop.index0 }}" value="{{ profile.base_url }}" /></td>
-                <td><input name="profile_path_{{ loop.index0 }}" value="{{ profile.path }}" /></td>
-                <td><input name="profile_method_{{ loop.index0 }}" value="{{ profile.method }}" /></td>
-                <td><textarea name="profile_headers_{{ loop.index0 }}" rows="3">{{ profile.headers | tojson }}</textarea>
-                </td>
-                <td><textarea name="profile_models_{{ loop.index0 }}"
-                        rows="3">{{ profile.model_candidates | join('\n') }}</textarea></td>
-                <td>
-                    <select name="profile_key_transport_{{ loop.index0 }}">
-                        <option value="header" {% if profile.api_key_transport=='header' %}selected{% endif %}>header
-                        </option>
-                        <option value="query" {% if profile.api_key_transport=='query' %}selected{% endif %}>query</option>
-                    </select>
-                </td>
-                <td><input name="profile_key_header_{{ loop.index0 }}" value="{{ profile.api_key_header }}" /></td>
-                <td><input name="profile_key_prefix_{{ loop.index0 }}" value="{{ profile.api_key_prefix }}" /></td>
-                <td><input name="profile_key_query_{{ loop.index0 }}" value="{{ profile.api_key_query_param }}" /></td>
-                <td><input type="checkbox" name="profile_enabled_{{ loop.index0 }}" {% if profile.enabled %}checked{% endif
-                        %} /></td>
-            </tr>
-            {% endfor %}
-            <tr>
-                <td><input name="profile_name_new" placeholder="{{ t('config_new_profile') }}" /></td>
-                <td>
-                    <select name="profile_format_new">
-                        <option value="openai">openai</option>
-                        <option value="anthropic">anthropic</option>
-                        <option value="google">google</option>
-                    </select>
-                </td>
-                <td><input name="profile_base_url_new" placeholder="https://api.example.com" /></td>
-                <td><input name="profile_path_new" placeholder="/v1/chat/completions" /></td>
-                <td><input name="profile_method_new" value="POST" /></td>
-                <td><textarea name="profile_headers_new" rows="3">{}</textarea></td>
-                <td><textarea name="profile_models_new" rows="3"></textarea></td>
-                <td>
-                    <select name="profile_key_transport_new">
-                        <option value="header">header</option>
-                        <option value="query">query</option>
-                    </select>
-                </td>
-                <td><input name="profile_key_header_new" value="Authorization" /></td>
-                <td><input name="profile_key_prefix_new" value="Bearer " /></td>
-                <td><input name="profile_key_query_new" value="key" /></td>
-                <td><input type="checkbox" name="profile_enabled_new" checked /></td>
-            </tr>
-        </table>
-    </div>
-    <div class="box">
-        <h3>{{ t('section_channels') }}</h3>
-        <p class="muted">{{ t('config_channels_hint') }}</p>
-        <datalist id="profile-options">
-            {% for profile in cfg.validation_profiles %}
-            <option value="{{ profile.name }}"></option>
-            {% endfor %}
-        </datalist>
-        <table>
-            <tr>
-                <th>{{ t('config_name') }}</th>
-                <th>{{ t('config_provider') }}</th>
-                <th>{{ t('config_query') }}</th>
-                <th>{{ t('config_extract_patterns') }}</th>
-                <th>{{ t('config_validation_profile') }}</th>
-                <th>{{ t('config_proxy') }}</th>
-                <th>{{ t('config_enabled') }}</th>
-            </tr>
-            {% for channel in cfg.channels %}
-            <tr>
-                <td><input name="channel_name_{{ loop.index0 }}" value="{{ channel.name }}" /></td>
-                <td><input name="channel_provider_{{ loop.index0 }}" value="{{ channel.provider }}" /></td>
-                <td><input name="channel_query_{{ loop.index0 }}" value="{{ channel.query }}" /></td>
-                <td><textarea name="channel_patterns_{{ loop.index0 }}"
-                        rows="3">{{ channel.extract_patterns | join('\n') }}</textarea></td>
-                <td><input list="profile-options" name="channel_profile_{{ loop.index0 }}"
-                        value="{{ channel.validation_profile }}" /></td>
-                <td><input name="channel_proxy_{{ loop.index0 }}" value="{{ channel.proxy }}" /></td>
-                <td><input type="checkbox" name="channel_enabled_{{ loop.index0 }}" {% if channel.enabled %}checked{% endif
-                        %} /></td>
-            </tr>
-            {% endfor %}
-            <tr>
-                <td><input name="channel_name_new" placeholder="{{ t('config_new_channel') }}" /></td>
-                <td><input name="channel_provider_new" placeholder="provider" /></td>
-                <td><input name="channel_query_new" placeholder="QUERY_STRING" /></td>
-                <td><textarea name="channel_patterns_new" rows="3"></textarea></td>
-                <td><input list="profile-options" name="channel_profile_new" placeholder="openai_compat" /></td>
-                <td><input name="channel_proxy_new" placeholder="http://proxy" /></td>
-                <td><input type="checkbox" name="channel_enabled_new" checked /></td>
-            </tr>
-        </table>
-    </div>
+</div>
 
-<details class="box">
-    <summary>{{ t('section_advanced') }}</summary>
-    <p class="muted">{{ t('config_json_hint') }}</p>
-    <label><input type="checkbox" name="use_json_profiles" /> {{ t('config_json_profiles') }}</label>
-    <label>{{ t('config_validation_profiles_json') }}</label>
-    <textarea name="validation_profiles_json" rows="12">{{ validation_profiles_json }}</textarea>
-    <label><input type="checkbox" name="use_json_channels" /> {{ t('config_json_channels') }}</label>
-    <label>{{ t('config_channels_json') }}</label>
-    <textarea name="channels_json" rows="12">{{ channels_json }}</textarea>
-</details>
+<div class="box">
+    <h3>{{ t('section_channels') }}</h3>
+    <p class="muted">{{ t('config_channels_hint') }}</p>
+    <table>
+        <tr>
+            <th>{{ t('config_name') }}</th>
+        <th>{{ t('config_provider') }}</th>
+        <th>{{ t('config_query') }}</th>
+        <th>{{ t('config_extract_patterns') }}</th>
+        <th>{{ t('config_format') }}</th>
+        <th>{{ t('config_base_url') }}</th>
+        <th>{{ t('config_path') }}</th>
+        <th>{{ t('config_method') }}</th>
+        <th>{{ t('config_headers') }}</th>
+        <th>{{ t('config_models') }}</th>
+        <th>{{ t('config_key_transport') }}</th>
+        <th>{{ t('config_header') }}</th>
+        <th>{{ t('config_prefix') }}</th>
+        <th>{{ t('config_query_param') }}</th>
+        <th>{{ t('config_proxy') }}</th>
+        <th>{{ t('config_enabled') }}</th>
+        </tr>
+    {% for channel in cfg.channels %}
+    <tr>
+        <td><input name="channel_name_{{ loop.index0 }}" value="{{ channel.name }}" /></td>
+        <td><input name="channel_provider_{{ loop.index0 }}" value="{{ channel.provider }}" /></td>
+        <td><input name="channel_query_{{ loop.index0 }}" value="{{ channel.query }}" /></td>
+        <td><textarea name="channel_patterns_{{ loop.index0 }}" rows="3">{{ channel.extract_patterns | join('\n') }}</textarea>
+        </td>
+        <td>
+        <select name="channel_format_{{ loop.index0 }}">
+            <option value="openai" {% if channel.api_format=='openai' %}selected{% endif %}>openai</option>
+            <option value="anthropic" {% if channel.api_format=='anthropic' %}selected{% endif %}>anthropic</option>
+            <option value="google" {% if channel.api_format=='google' %}selected{% endif %}>google</option>
+        </select>
+        </td>
+        <td><input name="channel_base_url_{{ loop.index0 }}" value="{{ channel.base_url }}" /></td>
+        <td><input name="channel_path_{{ loop.index0 }}" value="{{ channel.path }}" /></td>
+        <td><input name="channel_method_{{ loop.index0 }}" value="{{ channel.method }}" /></td>
+        <td><textarea name="channel_headers_{{ loop.index0 }}" rows="3">{{ channel.headers | tojson }}</textarea></td>
+        <td><textarea name="channel_models_{{ loop.index0 }}" rows="3">{{ channel.model_candidates | join('\n') }}</textarea>
+        </td>
+        <td>
+        <select name="channel_key_transport_{{ loop.index0 }}">
+            <option value="header" {% if channel.api_key_transport=='header' %}selected{% endif %}>header</option>
+            <option value="query" {% if channel.api_key_transport=='query' %}selected{% endif %}>query</option>
+        </select>
+        </td>
+        <td><input name="channel_key_header_{{ loop.index0 }}" value="{{ channel.api_key_header }}" /></td>
+        <td><input name="channel_key_prefix_{{ loop.index0 }}" value="{{ channel.api_key_prefix }}" /></td>
+        <td><input name="channel_key_query_{{ loop.index0 }}" value="{{ channel.api_key_query_param }}" /></td>
+        <td><input name="channel_proxy_{{ loop.index0 }}" value="{{ channel.proxy }}" /></td>
+        <td><input type="checkbox" name="channel_enabled_{{ loop.index0 }}" {% if channel.enabled %}checked{% endif %} /></td>
+        </tr>
+        {% endfor %}
+        <tr>
+        <td><input name="channel_name_new" placeholder="{{ t('config_new_channel') }}" /></td>
+        <td><input name="channel_provider_new" placeholder="provider" /></td>
+        <td><input name="channel_query_new" placeholder="QUERY_STRING" /></td>
+        <td><textarea name="channel_patterns_new" rows="3"></textarea></td>
+        <td>
+        <select name="channel_format_new">
+            <option value="openai">openai</option>
+            <option value="anthropic">anthropic</option>
+            <option value="google">google</option>
+        </select>
+        </td>
+        <td><input name="channel_base_url_new" placeholder="https://api.example.com" /></td>
+        <td><input name="channel_path_new" placeholder="/v1/chat/completions" /></td>
+        <td><input name="channel_method_new" value="POST" /></td>
+        <td><textarea name="channel_headers_new" rows="3">{}</textarea></td>
+        <td><textarea name="channel_models_new" rows="3"></textarea></td>
+        <td>
+        <select name="channel_key_transport_new">
+            <option value="header">header</option>
+            <option value="query">query</option>
+        </select>
+        </td>
+        <td><input name="channel_key_header_new" value="Authorization" /></td>
+        <td><input name="channel_key_prefix_new" value="Bearer " /></td>
+        <td><input name="channel_key_query_new" value="key" /></td>
+        <td><input name="channel_proxy_new" placeholder="http://proxy" /></td>
+        <td><input type="checkbox" name="channel_enabled_new" checked /></td>
+        </tr>
+        </table>
+        </div>
 
 <div class="box">
     <button class="btn" type="submit">{{ t('config_save') }}</button>
