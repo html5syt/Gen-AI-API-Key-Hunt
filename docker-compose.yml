@@ -5,6 +5,14 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./config.yaml:/app/config.yaml
-      - ./data:/app/data
+      - type: bind
+        source: ./config.yaml
+        target: /app/config.yaml
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./data
+        target: /app/data
+        bind:
+          create_host_path: true
     restart: unless-stopped
