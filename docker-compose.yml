@@ -1,6 +1,6 @@
 services:
   app:
-    image: ghcr.io/html5syt/Gen-AI-API-Key-Hunt:latest
+    image: ghcr.io/html5syt/gen-ai-api-key-hunt:latest
     pull_policy: always
     ports:
       - "8080:8080"
