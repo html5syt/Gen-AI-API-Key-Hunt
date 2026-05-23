@@ -1,10 +1,10 @@
 services:
   app:
-    image: ${GHCR_IMAGE:?set GHCR_IMAGE to ghcr.io/<owner>/<repo>:latest}
+    image: ghcr.io/html5syt/Gen-AI-API-Key-Hunt:latest
     pull_policy: always
     ports:
       - "8080:8080"
     volumes:
-      - ./config.yaml:/app/config.yaml:ro
+      - ./config.yaml:/app/config.yaml
       - ./data:/app/data
     restart: unless-stopped

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import random
+import secrets
 import time
 from typing import Any
 
@@ -176,7 +176,7 @@ class Validator:
         proxies = {"http": proxy, "https": proxy} if proxy.strip() else None
 
         for attempt in range(self.config.validation.retries + 1):
-            model = random.choice(profile.model_candidates)
+            model = secrets.choice(profile.model_candidates)
             url = self._build_url(profile, model)
             headers = self._build_headers(profile, api_key)
             params = self._build_params(profile, api_key)

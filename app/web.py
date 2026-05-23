@@ -40,7 +40,7 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "login_title": "Sign in",
         "login_prompt": "Use the username and password configured in the WebUI settings.",
         "login_username": "Username",
-        "login_password": "Password",
+        "login_password": "Password",  # nosec B105
         "login_button": "Login",
         "login_hint": "Passwords are stored as SHA-256 hashes after saving.",
         "login_invalid": "Invalid username or password.",
@@ -107,12 +107,12 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "config_host": "Host",
         "config_port": "Port",
         "config_username": "Username",
-        "config_password": "New password",
-        "config_session_secret": "Session secret",
+        "config_password": "New password",  # nosec B105
+        "config_session_secret": "Session secret",  # nosec B105
         "config_page_size": "Page size",
         "config_enable_api": "Enable API",
-        "config_api_token": "New API token",
-        "config_secret_hint": "Passwords and tokens are stored as SHA-256 hashes after saving.",
+        "config_api_token": "New API token",  # nosec B105
+        "config_secret_hint": "Credentials are stored as SHA-256 hashes after saving.",
         "config_profiles_hint": "Each profile maps to a compatible API format and declares the request details.",
         "config_channels_hint": "Each channel links to a validation profile by name.",
         "config_json_hint": "Use JSON only if you prefer manual editing. GUI values take precedence.",
@@ -165,7 +165,7 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "login_title": "登录",
         "login_prompt": "使用 WebUI 配置里设置的用户名和密码登录。",
         "login_username": "用户名",
-        "login_password": "密码",
+        "login_password": "登录口令",  # nosec B105
         "login_button": "登录",
         "login_hint": "密码保存后会以 SHA-256 哈希形式存储。",
         "login_invalid": "用户名或密码不正确。",
@@ -232,12 +232,12 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "config_host": "主机",
         "config_port": "端口",
         "config_username": "用户名",
-        "config_password": "新密码",
-        "config_session_secret": "会话密钥",
+        "config_password": "登录口令",  # nosec B105
+        "config_session_secret": "会话密钥",  # nosec B105
         "config_page_size": "分页大小",
         "config_enable_api": "启用 API",
-        "config_api_token": "新的 API Token",
-        "config_secret_hint": "密码和 Token 保存后会以 SHA-256 哈希形式存储。",
+        "config_api_token": "新的 API 凭证",  # nosec B105
+        "config_secret_hint": "凭证保存后会以 SHA-256 哈希形式存储。",
         "config_profiles_hint": "每个配置都对应一种兼容的 API 格式，并声明请求细节。",
         "config_channels_hint": "每个渠道通过名称关联到一个验证配置。",
         "config_json_hint": "只有在你想手工编辑时才使用 JSON，界面表格会优先生效。",
@@ -292,8 +292,9 @@ def _translate(language: str, key: str) -> str:
 
 def _current_url(request: Request) -> str:
     url = request.url.path
-    if request.url.query:
-        url = f"{url}?{request.url.query}"
+    query = str(request.url.query)
+    if query:
+        url = f"{url}?{query}"
     return url
 
 

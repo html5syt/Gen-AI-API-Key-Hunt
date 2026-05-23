@@ -60,18 +60,6 @@ class Database:
         if column not in columns:
             cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 
-    def _order_clause(
-        self,
-        sort_by: str,
-        sort_order: str,
-        allowed_columns: dict[str, str],
-        default_column: str,
-        default_order: str = "DESC",
-    ) -> str:
-        column = allowed_columns.get(sort_by, default_column)
-        order = "ASC" if sort_order.upper() == "ASC" else "DESC"
-        return f"{column} {order}, id {order}"
-
     def _init(self) -> None:
         with self._connect() as con:
             cur = con.cursor()
@@ -302,44 +290,180 @@ class Database:
         sort_by: str = "id",
         sort_order: str = "DESC",
     ) -> list[FoundKeyRecord]:
-        order_clause = self._order_clause(
-            sort_by,
-            sort_order,
-            {
-                "id": "id",
-                "channel_name": "channel_name",
-                "provider": "provider",
-                "api_key": "api_key",
-                "repository": "repository",
-                "file_path": "file_path",
-                "validation_status": "validation_status",
-                "first_seen_at": "first_seen_at",
-                "last_seen_at": "last_seen_at",
-                "last_validated_at": "last_validated_at",
-            },
-            "id",
-        )
+        sort_desc = sort_order.upper() != "ASC"
+        if status:
+            query_map = {
+                (
+                    "id",
+                    True,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY id DESC LIMIT ? OFFSET ?",
+                (
+                    "id",
+                    False,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY id ASC LIMIT ? OFFSET ?",
+                (
+                    "channel_name",
+                    True,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY channel_name DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "channel_name",
+                    False,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY channel_name ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "provider",
+                    True,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY provider DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "provider",
+                    False,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY provider ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "api_key",
+                    True,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY api_key DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "api_key",
+                    False,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY api_key ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "repository",
+                    True,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY repository DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "repository",
+                    False,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY repository ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "file_path",
+                    True,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY file_path DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "file_path",
+                    False,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY file_path ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "validation_status",
+                    True,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY validation_status DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "validation_status",
+                    False,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY validation_status ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "first_seen_at",
+                    True,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY first_seen_at DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "first_seen_at",
+                    False,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY first_seen_at ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "last_seen_at",
+                    True,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY last_seen_at DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "last_seen_at",
+                    False,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY last_seen_at ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "last_validated_at",
+                    True,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY last_validated_at DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "last_validated_at",
+                    False,
+                ): "SELECT * FROM found_keys WHERE validation_status = ? ORDER BY last_validated_at ASC, id ASC LIMIT ? OFFSET ?",
+            }
+            query = query_map.get((sort_by, sort_desc), query_map[("id", sort_desc)])
+            params = [status, limit, offset]
+        else:
+            query_map = {
+                (
+                    "id",
+                    True,
+                ): "SELECT * FROM found_keys ORDER BY id DESC LIMIT ? OFFSET ?",
+                (
+                    "id",
+                    False,
+                ): "SELECT * FROM found_keys ORDER BY id ASC LIMIT ? OFFSET ?",
+                (
+                    "channel_name",
+                    True,
+                ): "SELECT * FROM found_keys ORDER BY channel_name DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "channel_name",
+                    False,
+                ): "SELECT * FROM found_keys ORDER BY channel_name ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "provider",
+                    True,
+                ): "SELECT * FROM found_keys ORDER BY provider DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "provider",
+                    False,
+                ): "SELECT * FROM found_keys ORDER BY provider ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "api_key",
+                    True,
+                ): "SELECT * FROM found_keys ORDER BY api_key DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "api_key",
+                    False,
+                ): "SELECT * FROM found_keys ORDER BY api_key ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "repository",
+                    True,
+                ): "SELECT * FROM found_keys ORDER BY repository DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "repository",
+                    False,
+                ): "SELECT * FROM found_keys ORDER BY repository ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "file_path",
+                    True,
+                ): "SELECT * FROM found_keys ORDER BY file_path DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "file_path",
+                    False,
+                ): "SELECT * FROM found_keys ORDER BY file_path ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "validation_status",
+                    True,
+                ): "SELECT * FROM found_keys ORDER BY validation_status DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "validation_status",
+                    False,
+                ): "SELECT * FROM found_keys ORDER BY validation_status ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "first_seen_at",
+                    True,
+                ): "SELECT * FROM found_keys ORDER BY first_seen_at DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "first_seen_at",
+                    False,
+                ): "SELECT * FROM found_keys ORDER BY first_seen_at ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "last_seen_at",
+                    True,
+                ): "SELECT * FROM found_keys ORDER BY last_seen_at DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "last_seen_at",
+                    False,
+                ): "SELECT * FROM found_keys ORDER BY last_seen_at ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "last_validated_at",
+                    True,
+                ): "SELECT * FROM found_keys ORDER BY last_validated_at DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "last_validated_at",
+                    False,
+                ): "SELECT * FROM found_keys ORDER BY last_validated_at ASC, id ASC LIMIT ? OFFSET ?",
+            }
+            query = query_map.get((sort_by, sort_desc), query_map[("id", sort_desc)])
+            params = [limit, offset]
         with self._connect() as con:
             cur = con.cursor()
-            if status:
-                cur.execute(
-                    """
-                    SELECT * FROM found_keys
-                    WHERE validation_status = ?
-                    ORDER BY {order_clause}
-                    LIMIT ? OFFSET ?
-                    """.format(order_clause=order_clause),
-                    [status, limit, offset],
-                )
-            else:
-                cur.execute(
-                    """
-                    SELECT * FROM found_keys
-                    ORDER BY {order_clause}
-                    LIMIT ? OFFSET ?
-                    """.format(order_clause=order_clause),
-                    [limit, offset],
-                )
+            cur.execute(query, params)
             rows = cur.fetchall()
         result: list[FoundKeyRecord] = []
         for row in rows:
@@ -370,42 +494,116 @@ class Database:
         sort_by: str = "id",
         sort_order: str = "DESC",
     ) -> list[dict[str, str]]:
-        order_clause = self._order_clause(
-            sort_by,
-            sort_order,
-            {
-                "id": "id",
-                "provider": "provider",
-                "api_key": "api_key",
-                "status": "status",
-                "last_validated_at": "last_validated_at",
-                "detail": "detail",
-            },
-            "id",
-        )
+        sort_desc = sort_order.upper() != "ASC"
+        if provider:
+            query_map = {
+                (
+                    "id",
+                    True,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys WHERE provider = ? ORDER BY id DESC LIMIT ? OFFSET ?",
+                (
+                    "id",
+                    False,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys WHERE provider = ? ORDER BY id ASC LIMIT ? OFFSET ?",
+                (
+                    "provider",
+                    True,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys WHERE provider = ? ORDER BY provider DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "provider",
+                    False,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys WHERE provider = ? ORDER BY provider ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "api_key",
+                    True,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys WHERE provider = ? ORDER BY api_key DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "api_key",
+                    False,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys WHERE provider = ? ORDER BY api_key ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "status",
+                    True,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys WHERE provider = ? ORDER BY status DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "status",
+                    False,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys WHERE provider = ? ORDER BY status ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "last_validated_at",
+                    True,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys WHERE provider = ? ORDER BY last_validated_at DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "last_validated_at",
+                    False,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys WHERE provider = ? ORDER BY last_validated_at ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "detail",
+                    True,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys WHERE provider = ? ORDER BY detail DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "detail",
+                    False,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys WHERE provider = ? ORDER BY detail ASC, id ASC LIMIT ? OFFSET ?",
+            }
+            query = query_map.get((sort_by, sort_desc), query_map[("id", sort_desc)])
+            params = [provider, limit, offset]
+        else:
+            query_map = {
+                (
+                    "id",
+                    True,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys ORDER BY id DESC LIMIT ? OFFSET ?",
+                (
+                    "id",
+                    False,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys ORDER BY id ASC LIMIT ? OFFSET ?",
+                (
+                    "provider",
+                    True,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys ORDER BY provider DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "provider",
+                    False,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys ORDER BY provider ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "api_key",
+                    True,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys ORDER BY api_key DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "api_key",
+                    False,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys ORDER BY api_key ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "status",
+                    True,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys ORDER BY status DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "status",
+                    False,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys ORDER BY status ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "last_validated_at",
+                    True,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys ORDER BY last_validated_at DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "last_validated_at",
+                    False,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys ORDER BY last_validated_at ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "detail",
+                    True,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys ORDER BY detail DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "detail",
+                    False,
+                ): "SELECT provider, api_key, status, last_validated_at, detail FROM validated_keys ORDER BY detail ASC, id ASC LIMIT ? OFFSET ?",
+            }
+            query = query_map.get((sort_by, sort_desc), query_map[("id", sort_desc)])
+            params = [limit, offset]
         with self._connect() as con:
             cur = con.cursor()
-            if provider:
-                cur.execute(
-                    """
-                    SELECT provider, api_key, status, last_validated_at, detail
-                    FROM validated_keys
-                    WHERE provider = ?
-                    ORDER BY {order_clause}
-                    LIMIT ? OFFSET ?
-                    """.format(order_clause=order_clause),
-                    [provider, limit, offset],
-                )
-            else:
-                cur.execute(
-                    """
-                    SELECT provider, api_key, status, last_validated_at, detail
-                    FROM validated_keys
-                    ORDER BY {order_clause}
-                    LIMIT ? OFFSET ?
-                    """.format(order_clause=order_clause),
-                    [limit, offset],
-                )
+            cur.execute(query, params)
             rows = cur.fetchall()
         return [
             {
@@ -447,42 +645,148 @@ class Database:
         sort_by: str = "id",
         sort_order: str = "DESC",
     ) -> list[ValidationLogRecord]:
-        order_clause = self._order_clause(
-            sort_by,
-            sort_order,
-            {
-                "id": "id",
-                "validated_at": "validated_at",
-                "source": "source",
-                "channel_name": "channel_name",
-                "provider": "provider",
-                "api_key": "api_key",
-                "status": "status",
-                "detail": "detail",
-            },
-            "id",
-        )
+        sort_desc = sort_order.upper() != "ASC"
+        if status:
+            query_map = {
+                (
+                    "id",
+                    True,
+                ): "SELECT * FROM validation_logs WHERE status = ? ORDER BY id DESC LIMIT ? OFFSET ?",
+                (
+                    "id",
+                    False,
+                ): "SELECT * FROM validation_logs WHERE status = ? ORDER BY id ASC LIMIT ? OFFSET ?",
+                (
+                    "validated_at",
+                    True,
+                ): "SELECT * FROM validation_logs WHERE status = ? ORDER BY validated_at DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "validated_at",
+                    False,
+                ): "SELECT * FROM validation_logs WHERE status = ? ORDER BY validated_at ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "source",
+                    True,
+                ): "SELECT * FROM validation_logs WHERE status = ? ORDER BY source DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "source",
+                    False,
+                ): "SELECT * FROM validation_logs WHERE status = ? ORDER BY source ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "channel_name",
+                    True,
+                ): "SELECT * FROM validation_logs WHERE status = ? ORDER BY channel_name DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "channel_name",
+                    False,
+                ): "SELECT * FROM validation_logs WHERE status = ? ORDER BY channel_name ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "provider",
+                    True,
+                ): "SELECT * FROM validation_logs WHERE status = ? ORDER BY provider DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "provider",
+                    False,
+                ): "SELECT * FROM validation_logs WHERE status = ? ORDER BY provider ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "api_key",
+                    True,
+                ): "SELECT * FROM validation_logs WHERE status = ? ORDER BY api_key DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "api_key",
+                    False,
+                ): "SELECT * FROM validation_logs WHERE status = ? ORDER BY api_key ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "status",
+                    True,
+                ): "SELECT * FROM validation_logs WHERE status = ? ORDER BY status DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "status",
+                    False,
+                ): "SELECT * FROM validation_logs WHERE status = ? ORDER BY status ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "detail",
+                    True,
+                ): "SELECT * FROM validation_logs WHERE status = ? ORDER BY detail DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "detail",
+                    False,
+                ): "SELECT * FROM validation_logs WHERE status = ? ORDER BY detail ASC, id ASC LIMIT ? OFFSET ?",
+            }
+            query = query_map.get((sort_by, sort_desc), query_map[("id", sort_desc)])
+            params = [status, limit, offset]
+        else:
+            query_map = {
+                (
+                    "id",
+                    True,
+                ): "SELECT * FROM validation_logs ORDER BY id DESC LIMIT ? OFFSET ?",
+                (
+                    "id",
+                    False,
+                ): "SELECT * FROM validation_logs ORDER BY id ASC LIMIT ? OFFSET ?",
+                (
+                    "validated_at",
+                    True,
+                ): "SELECT * FROM validation_logs ORDER BY validated_at DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "validated_at",
+                    False,
+                ): "SELECT * FROM validation_logs ORDER BY validated_at ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "source",
+                    True,
+                ): "SELECT * FROM validation_logs ORDER BY source DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "source",
+                    False,
+                ): "SELECT * FROM validation_logs ORDER BY source ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "channel_name",
+                    True,
+                ): "SELECT * FROM validation_logs ORDER BY channel_name DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "channel_name",
+                    False,
+                ): "SELECT * FROM validation_logs ORDER BY channel_name ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "provider",
+                    True,
+                ): "SELECT * FROM validation_logs ORDER BY provider DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "provider",
+                    False,
+                ): "SELECT * FROM validation_logs ORDER BY provider ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "api_key",
+                    True,
+                ): "SELECT * FROM validation_logs ORDER BY api_key DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "api_key",
+                    False,
+                ): "SELECT * FROM validation_logs ORDER BY api_key ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "status",
+                    True,
+                ): "SELECT * FROM validation_logs ORDER BY status DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "status",
+                    False,
+                ): "SELECT * FROM validation_logs ORDER BY status ASC, id ASC LIMIT ? OFFSET ?",
+                (
+                    "detail",
+                    True,
+                ): "SELECT * FROM validation_logs ORDER BY detail DESC, id DESC LIMIT ? OFFSET ?",
+                (
+                    "detail",
+                    False,
+                ): "SELECT * FROM validation_logs ORDER BY detail ASC, id ASC LIMIT ? OFFSET ?",
+            }
+            query = query_map.get((sort_by, sort_desc), query_map[("id", sort_desc)])
+            params = [limit, offset]
         with self._connect() as con:
             cur = con.cursor()
-            if status:
-                cur.execute(
-                    """
-                    SELECT * FROM validation_logs
-                    WHERE status = ?
-                    ORDER BY {order_clause}
-                    LIMIT ? OFFSET ?
-                    """.format(order_clause=order_clause),
-                    [status, limit, offset],
-                )
-            else:
-                cur.execute(
-                    """
-                    SELECT * FROM validation_logs
-                    ORDER BY {order_clause}
-                    LIMIT ? OFFSET ?
-                    """.format(order_clause=order_clause),
-                    [limit, offset],
-                )
+            cur.execute(query, params)
             rows = cur.fetchall()
         return [
             ValidationLogRecord(
