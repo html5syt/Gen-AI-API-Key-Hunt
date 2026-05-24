@@ -74,7 +74,6 @@
         <th>{{ t('config_path') }}</th>
         <th>{{ t('config_method') }}</th>
         <th>{{ t('config_headers') }}</th>
-        <th>{{ t('config_models') }}</th>
         <th>{{ t('config_key_transport') }}</th>
         <th>{{ t('config_header') }}</th>
         <th>{{ t('config_prefix') }}</th>
@@ -100,8 +99,6 @@
         <td><input name="channel_path_{{ loop.index0 }}" value="{{ channel.path }}" /></td>
         <td><input name="channel_method_{{ loop.index0 }}" value="{{ channel.method }}" /></td>
         <td><textarea name="channel_headers_{{ loop.index0 }}" rows="3">{{ channel.headers | tojson }}</textarea></td>
-        <td><textarea name="channel_models_{{ loop.index0 }}" rows="3">{{ channel.model_candidates | join('\n') }}</textarea>
-        </td>
         <td>
         <select name="channel_key_transport_{{ loop.index0 }}">
             <option value="header" {% if channel.api_key_transport=='header' %}selected{% endif %}>header</option>
@@ -131,7 +128,6 @@
         <td><input name="channel_path_new" placeholder="/v1/chat/completions" /></td>
         <td><input name="channel_method_new" value="POST" /></td>
         <td><textarea name="channel_headers_new" rows="3">{}</textarea></td>
-        <td><textarea name="channel_models_new" rows="3"></textarea></td>
         <td>
         <select name="channel_key_transport_new">
             <option value="header">header</option>

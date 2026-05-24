@@ -5,6 +5,7 @@ A GitHub LLM key discovery and validation service with concurrent search + valid
 ## Features
 
 - **Concurrent search and validation**: discovered key candidates are queued and validated immediately, then periodically rechecked.
+- **Dynamic model lookup**: validation picks a random model fetched from the provider API at runtime.
 - **Authenticated Web UI** (custom host/port):
   - session login only, no basic auth
   - found keys view with expandable validation details
@@ -18,7 +19,7 @@ A GitHub LLM key discovery and validation service with concurrent search + valid
 - **Placeholder key filtering** before insert/validation.
 - **Per-channel proxy** configuration.
 - **Custom channels** with custom search expressions, regex extraction rules, endpoint settings, request headers, and model lists.
-- **Dashboard controls** to pause scanning or force an immediate full rescan.
+- **Dashboard controls** to pause/resume periodic scanning, start a scan immediately, or revalidate all tracked keys.
 - **Docker image** published to GitHub Container Registry.
 
 ## Project Structure

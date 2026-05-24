@@ -108,6 +108,26 @@ class ScanPipeline:
         self._force_rescan_event.set()
         self._scan_event.set()
 
+    def revalidate_all_keys_now(self) -> None:
+        cfg = self.config_manager.get()
+        rows = self.database.list_all_found()
+        for row in rows:
+            self._queue.put(
+                ValidationTask(
+                    channel_name=row["channel_name"],
+                    provider=row["provider"],
+                    api_key=row["api_key"],
+                    repository=row["repository"],
+                    file_path=row["file_path"],
+                    file_url=row["file_url"],
+                    matched_line=row["matched_line"],
+                    proxy=self._resolve_proxy(cfg, row["channel_name"], row["provider"]),
+                    source="manual",
+                )
+            )
+        with self._state_lock:
+            self._state.queue_size = self._queue.qsize()
+
     def runtime_stats(self) -> dict[str, Any]:
         with self._state_lock:
             return {

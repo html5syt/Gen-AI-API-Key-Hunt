@@ -282,6 +282,30 @@ class Database:
             for row in rows
         ]
 
+    def list_all_found(self) -> list[dict[str, str]]:
+        with self._connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                SELECT channel_name, provider, api_key, repository, file_path, file_url, matched_line
+                FROM found_keys
+                ORDER BY last_seen_at DESC, id DESC
+                """
+            )
+            rows = cur.fetchall()
+        return [
+            {
+                "channel_name": str(row["channel_name"]),
+                "provider": str(row["provider"]),
+                "api_key": str(row["api_key"]),
+                "repository": str(row["repository"]),
+                "file_path": str(row["file_path"]),
+                "file_url": str(row["file_url"]),
+                "matched_line": str(row["matched_line"]),
+            }
+            for row in rows
+        ]
+
     def list_found(
         self,
         limit: int,

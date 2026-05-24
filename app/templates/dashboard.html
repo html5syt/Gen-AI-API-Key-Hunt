@@ -33,14 +33,14 @@
     </div>
     <div class="split" style="gap:10px;flex-wrap:wrap;">
     <form method="post" action="/scan/run-now">
-        <button class="btn" type="submit">{{ t('dashboard_run_now') }}</button>
+      <button class="btn" type="submit">{{ t('dashboard_run_now') }}</button>
     </form>
     <form method="post" action="/scan/pause">
-        <button class="btn" type="submit">{{ t('dashboard_resume_scan') if runtime.paused else t('dashboard_pause_scan')
-            }}</button>
+      <button class="btn" type="submit">{{ t('dashboard_resume_scan') if runtime.paused else t('dashboard_pause_scan')
+        }}</button>
     </form>
-    <form method="post" action="/scan/force-rescan">
-        <button class="btn btn-secondary" type="submit">{{ t('dashboard_force_rescan') }}</button>
+    <form method="post" action="/scan/revalidate-all">
+      <button class="btn btn-secondary" type="submit">{{ t('dashboard_revalidate_all') }}</button>
     </form>
     </div>
 </div>

@@ -49,10 +49,10 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "dashboard_validated_total": "Keys still considered usable",
         "dashboard_queue_size": "Validation jobs waiting",
         "dashboard_log_count": "Validation log entries",
-        "dashboard_run_now": "Run Scan Now",
-        "dashboard_pause_scan": "Pause Scanning",
-        "dashboard_resume_scan": "Resume Scanning",
-        "dashboard_force_rescan": "Force Stop and Rescan All Keys",
+        "dashboard_run_now": "Start Scan Now",
+        "dashboard_pause_scan": "Pause Periodic Scanning",
+        "dashboard_resume_scan": "Resume Periodic Scanning",
+        "dashboard_revalidate_all": "Revalidate All Keys Now",
         "dashboard_scan_paused": "Scanning is paused.",
         "dashboard_live": "Live",
         "dashboard_scheduler_active": "Scheduler active",
@@ -175,10 +175,10 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "dashboard_validated_total": "仍被视为可用的 Key",
         "dashboard_queue_size": "等待处理的验证任务",
         "dashboard_log_count": "验证日志条数",
-        "dashboard_run_now": "立即执行扫描",
-        "dashboard_pause_scan": "暂停扫描",
-        "dashboard_resume_scan": "继续扫描",
-        "dashboard_force_rescan": "强制停止并重新检测全部 Key",
+        "dashboard_run_now": "立即开始扫描",
+        "dashboard_pause_scan": "暂停定期扫描",
+        "dashboard_resume_scan": "继续定期扫描",
+        "dashboard_revalidate_all": "立即重新验证全部 Key",
         "dashboard_scan_paused": "扫描已暂停。",
         "dashboard_live": "运行中",
         "dashboard_scheduler_active": "调度器运行中",
@@ -729,6 +729,11 @@ def create_app(config_path: str, db_path: str) -> FastAPI:
 
             return sorted(indices, key=_sort_key)
 
+        existing_model_candidates = {
+            (channel.name, channel.provider): list(channel.model_candidates)
+            for channel in cfg.channels
+        }
+
         channel_indices = _collect_indices("channel_name_")
         channels: list[ChannelConfig] = []
         for idx in channel_indices:
@@ -753,10 +758,6 @@ def create_app(config_path: str, db_path: str) -> FastAPI:
                 if isinstance(headers_raw, dict)
                 else {}
             )
-            models_text = _read_form_field(form_data, f"channel_models_{idx}")
-            model_candidates = [
-                line.strip() for line in models_text.splitlines() if line.strip()
-            ]
             channels.append(
                 ChannelConfig(
                     name=name,
@@ -782,7 +783,7 @@ def create_app(config_path: str, db_path: str) -> FastAPI:
                     .upper()
                     or "POST",
                     headers=headers,
-                    model_candidates=model_candidates,
+                    model_candidates=existing_model_candidates.get((name, provider), []),
                     api_key_transport=_read_form_field(
                         form_data, f"channel_key_transport_{idx}", "header"
                     )
@@ -825,6 +826,16 @@ def create_app(config_path: str, db_path: str) -> FastAPI:
     @app.post("/scan/run-now", dependencies=[Depends(require_web_auth)])
     async def run_now() -> RedirectResponse:
         pipeline.trigger_scan_now()
+        return RedirectResponse(url="/", status_code=302)
+
+    @app.post("/scan/revalidate-all", dependencies=[Depends(require_web_auth)])
+    async def revalidate_all() -> RedirectResponse:
+        pipeline.revalidate_all_keys_now()
+        return RedirectResponse(url="/", status_code=302)
+
+    @app.post("/scan/force-rescan", dependencies=[Depends(require_web_auth)])
+    async def force_rescan() -> RedirectResponse:
+        pipeline.revalidate_all_keys_now()
         return RedirectResponse(url="/", status_code=302)
 
     def _api_auth(token_provider: Callable[[], AppConfig], request: Request) -> None:

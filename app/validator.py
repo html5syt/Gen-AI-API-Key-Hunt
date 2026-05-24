@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import secrets
 import time
 from typing import Any
+from urllib.parse import urljoin
 
 import requests
 
@@ -33,6 +34,18 @@ class Validator:
             path = f"/{path}"
         return f"{base_url}{path}"
 
+    def _model_list_path(self, channel: ChannelConfig) -> str:
+        path = channel.path.strip()
+        if channel.api_format == "google":
+            return "/v1beta/models"
+        if "{model}" in path:
+            prefix = path.split("{model}", 1)[0].rstrip("/")
+            return prefix if prefix.endswith("/models") else f"{prefix}/models"
+        for suffix in ("/chat/completions", "/messages"):
+            if suffix in path:
+                return f"{path.split(suffix, 1)[0].rstrip('/')}/models"
+        return f"{path.rstrip('/')}/models"
+
     def _build_headers(self, channel: ChannelConfig, api_key: str) -> dict[str, str]:
         headers = dict(channel.headers)
         if channel.api_key_transport == "header":
@@ -45,6 +58,61 @@ class Validator:
         if channel.api_key_transport == "query":
             return {channel.api_key_query_param: api_key}
         return None
+
+    def _extract_model_names(self, payload: Any) -> list[str]:
+        items: list[Any] = []
+        if isinstance(payload, dict):
+            for key in ("data", "models", "items"):
+                value = payload.get(key)
+                if isinstance(value, list):
+                    items.extend(value)
+            if not items and any(key in payload for key in ("id", "name", "model")):
+                items.append(payload)
+        elif isinstance(payload, list):
+            items.extend(payload)
+
+        names: list[str] = []
+        for item in items:
+            if isinstance(item, str):
+                candidate = item.strip()
+            elif isinstance(item, dict):
+                candidate = ""
+                for key in ("id", "name", "model", "slug"):
+                    value = str(item.get(key, "")).strip()
+                    if value:
+                        candidate = value
+                        break
+            else:
+                candidate = ""
+            if candidate and candidate not in names:
+                names.append(candidate)
+        return names
+
+    def _fetch_models(self, channel: ChannelConfig, api_key: str) -> list[str]:
+        base_url = channel.base_url.rstrip("/")
+        model_list_url = urljoin(f"{base_url}/", self._model_list_path(channel).lstrip("/"))
+        headers = self._build_headers(channel, api_key)
+        params = self._build_params(channel, api_key)
+        try:
+            response = requests.request(
+                method="GET",
+                url=model_list_url,
+                headers=headers,
+                params=params,
+                timeout=self.config.validation.request_timeout_seconds,
+            )
+        except requests.RequestException:
+            return []
+
+        if response.status_code not in {200, 201}:
+            return []
+
+        try:
+            payload = response.json()
+        except ValueError:
+            return []
+
+        return self._extract_model_names(payload)
 
     def _build_body(self, channel: ChannelConfig, model: str) -> dict[str, Any]:
         prompt = self.config.validation.ping_prompt
@@ -154,16 +222,17 @@ class Validator:
             return ValidationResult(
                 status="UNKNOWN_PROFILE", detail="channel is not supported"
             )
-        if not channel.model_candidates:
-            return ValidationResult(
-                status="ERROR",
-                detail=f"channel {channel.name} has no models",
-            )
 
         proxies = {"http": proxy, "https": proxy} if proxy.strip() else None
+        available_models = self._fetch_models(channel, api_key) or channel.model_candidates
+        if not available_models:
+            return ValidationResult(
+                status="ERROR",
+                detail=f"channel {channel.name} returned no models",
+            )
 
         for attempt in range(self.config.validation.retries + 1):
-            model = secrets.choice(channel.model_candidates)
+            model = secrets.choice(available_models)
             url = self._build_url(channel, model)
             headers = self._build_headers(channel, api_key)
             params = self._build_params(channel, api_key)
