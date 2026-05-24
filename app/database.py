@@ -830,6 +830,13 @@ class Database:
             for row in rows
         ]
 
+    def clear_validation_logs(self) -> None:
+        """Delete all rows from the validation_logs table."""
+        with self._lock, self._connect() as con:
+            cur = con.cursor()
+            cur.execute("DELETE FROM validation_logs")
+            con.commit()
+
     def export_validated_csv(self, output_path: str) -> int:
         written = 0
         with self._connect() as con, open(output_path, "w", newline="", encoding="utf-8") as file_obj:

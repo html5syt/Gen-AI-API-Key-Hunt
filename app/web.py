@@ -78,6 +78,9 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "col_last_validated": "Last Validated",
         "logs_title": "Validation Logs",
         "logs_desc": "Every validation attempt is stored here, including failures and deletions.",
+        "clear_logs_button": "Clear Validation Logs",
+        "clear_logs_confirm": "Are you sure? This will permanently delete all validation log entries.",
+        "logs_cleared": "Validation logs cleared.",
         "col_time": "Time",
         "col_source": "Source",
         "col_mode": "Mode",
@@ -204,6 +207,9 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "col_last_validated": "最近验证时间",
         "logs_title": "验证日志",
         "logs_desc": "每一次验证尝试都会记录在这里，包括失败和删除。",
+        "clear_logs_button": "清除验证日志",
+        "clear_logs_confirm": "确定要清除吗？此操作会永久删除所有验证日志。",
+        "logs_cleared": "验证日志已清除。",
         "col_time": "时间",
         "col_source": "来源",
         "col_mode": "模式",
@@ -634,6 +640,11 @@ def create_app(config_path: str, db_path: str) -> FastAPI:
             sort_by=sort_by,
             sort_order=sort_order,
         )
+
+    @app.post("/validation/logs/clear", dependencies=[Depends(require_web_auth)])
+    async def clear_validation_logs() -> RedirectResponse:
+        database.clear_validation_logs()
+        return RedirectResponse(url="/validation/logs?cleared=1", status_code=302)
 
     @app.get("/export/validated.csv", dependencies=[Depends(require_web_auth)])
     async def export_validated() -> FileResponse:
